@@ -27,7 +27,8 @@ exception Error : (error_msg , pos)
 type mode {
 	MElement;
 	MExpr;
-	MAttribute;
+	MAttributes;
+	MAttrValue;
 	MMacro;
 }
 
@@ -51,8 +52,8 @@ function mk(t,p) {
 
 function rec program(s,acc) {
 	match s {
-	| [< (Eof,_) >] -> (List.rev acc, None)
-	| [< (EndNode n,_) >] -> (List.rev acc, Some n)
+	| [< (Eof,_) >] -> (List.rev acc, Eof)
+	| [< (EndNode n,_) >] -> (List.rev acc, EndNode n)
 	| [< e = parse_element s >] -> program s (e :: acc)
 	}
 }
@@ -61,24 +62,29 @@ function rec parse_element(s) {
 	match s {
 	| [< (Data str,p) >] -> (EData str, p)
 	| [< (Comment n,p) >] -> (EComment n, p)
-	| [< (DoubleDot,p1); c, p2 = parse_construct s p1 >] -> (EConstr(c), punion p1 p2)
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c, punion p1 p2)
 	| [< (Node n,p); node = parse_node s n p >] -> node
-	| [< (Macro n,p); macro = parse_macro s n p >] -> macro
+	| [< (Macro n,p1); macro = parse_macro s n >] -> (EMacro macro, p1)
 	}
 }
 
-function rec parse_construct(s,p1) {
+function rec parse_construct(s) {
 	var old = *cur;
 	cur := MExpr;
 	var c = match s {
 	| [< (Ident "use",_); e = parse_expr s >] -> CUse e
 	| [< (Ident "raw",_); e = parse_expr s >] -> CRaw e
 	| [< (Ident "set",_); (Ident value,_); (Op "=",_); e = parse_expr s >] -> CSet value e
+	| [< (Keyword KIf,_); e = parse_expr s >] -> CIf e
+	| [< (Keyword KElse,_) >] -> CElse
+	| [< (Ident "elseif",_); e = parse_expr s >] -> CElseIf e
+	| [< (Ident "foreach",_); (Ident k,_); e = parse_expr s >] -> CForeach k e
+	| [< (Ident "fill",_); (Ident k,_); >] -> CFill k
 	| [< e = parse_expr s >] -> CValue e
 	}
 	cur := old;
 	match s {
-	| [< (DoubleDot,p2) >] -> (c, p2)	
+	| [< (DoubleDot,p2) >] -> (c,p2)
 	}
 }
 
@@ -92,65 +98,104 @@ function rec parse_node(s,n,p1) {
 		n_attrs = [];
 		n_content = None;
 	};
-	cur := MAttribute;
+	cur := MAttributes;
 	var content, p2 = parse_node_attribs s n;
+	n.n_attributes := List.rev n.n_attributes;
+	n.n_macros := List.rev n.n_macros;
+	n.n_attrs := List.rev n.n_attrs;
     cur := MElement;
 	if content then {
 		var content, enode = program s [];
 		match enode {
-		| None -> error Unclosed_node(n.n_node) p1
-		| Some name -> if n.n_node != name then throw Stream_error;
+		| EndNode name -> if n.n_node != name then throw Stream_error;
+		| _ -> error Unclosed_node(n.n_node) p1
 		}		
 		n.n_content := Some content;
 	}
 	(ENode n, punion p1 p2)
 }
 
-function rec parse_node_attribs(s,n) {
+function rec parse_node_attribs(s,node) {
 	match s {
 	| [< (NodeContent c,p) >] -> (c, p)
 	| [< (DoubleDot,_) >] ->
 		cur := MExpr;
 		match s {
-		| [< (Ident "cond",_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
-		| [< (Ident "attr",_); (Ident attr,_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
-		| [< (Ident "repeat",_); (Ident v,_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
+		| [< (Ident "cond",p); e = parse_expr s; (DoubleDot,_) >] -> 
+			match node.n_cond {
+			| None -> node.n_cond := Some e;
+			| Some _ -> error Message("Duplicate cond") p
+			}
+		| [< (Ident "attr",_); (Ident attr,_); e = parse_expr s; (DoubleDot,_) >] ->
+			node.n_attrs := (attr,e) :: node.n_attrs
+		| [< (Ident "repeat",p); (Ident v,_); e = parse_expr s; (DoubleDot,_) >] ->
+			match node.n_cond {
+			| None -> node.n_repeat := Some (v,e);
+			| Some _ -> error Message("Duplicate repeat") p
+			}			
 		}
-		cur := MAttribute;
-		parse_node_attribs s n
-	| [< (Ident attr,p1); (Op "=",_); (String value,p2) >] ->
-		// TODO : parse value ?
-		parse_node_attribs s n
+		cur := MAttributes;
+		parse_node_attribs s node
+	| [< (Ident attr,_); (Op "=",_) >] ->
+		cur := MAttrValue;
+		var v = match s {
+		| [< (Quote b,_); v = parse_attrib_value s b >] -> v
+		};
+		cur := MAttributes;
+		node.n_attributes := (attr,v) :: node.n_attributes;
+		parse_node_attribs s node
+	| [< (Macro n,p1); m = parse_macro s n >] ->
+		node.n_macros := (m,p1) :: node.n_macros;
+		parse_node_attribs s node
 	}
 }
 
-function rec parse_macro(s,n,p1) {
+function rec parse_attrib_value(s,b) {
+	match s {
+	| [< (Data str,p) >] -> (EData str,p) :: parse_attrib_value s b
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c,punion p1 p2) :: parse_attrib_value s b
+	| [< (Macro n,p1); m = parse_macro s n >] -> (EMacro m, p1) :: parse_attrib_value s b
+	| [< (Quote b2,p) >] -> if b == b2 then [] else (EData (s_token Quote(b2)),p) :: parse_attrib_value s b
+	}
+}
+
+function rec parse_macro(s,n) {
+	var old = *cur;
 	cur := MMacro;
-	var el, p2 = match s {
-	| [< (ParentOpen,_); (ParentClose,p2); >] -> ([],p2)
-	| [< (ParentOpen,_); inf = parse_macro_params s []; >] -> inf
+	var el = match s {
+	| [< (ParentOpen,_); (ParentClose,_); >] -> []
+	| [< (ParentOpen,_); el = parse_macro_params s [] 0 []; >] -> el
 	}
-	cur := MElement;	
-	(EMacro ({ m_name = n; m_params = el; }), punion p1 p2)
+	cur := old;
+	{ m_name = n; m_params = el; }
 }
 
-function rec parse_macro_params(s,acc) {
+function rec parse_macro_params(s,acc,n,pacc) {
 	match s {
-	| [< p = parse_macro_param s >] ->
+	| [< vl, n = parse_macro_param s n pacc >] ->
 		match s {
-		| [< (Comma,_) >] -> parse_macro_params s (p :: acc)
-		| [< (ParentClose,p2) >] -> (List.rev (p :: acc), p2)
+		| [< (Comma,p) >] -> 
+			if n == 0 then
+				parse_macro_params s (List.rev(vl) :: acc) 0 []
+			else
+				parse_macro_params s acc n ((EData ",",p) :: vl)
+		| [< (ParentClose,p) >] ->
+			if n == 0 then
+				List.rev (List.rev(vl) :: acc)
+			else
+				parse_macro_params s acc n ((EData ")",p) :: vl)
 		}
 	}
 }
 
-function rec parse_macro_param(s) {
+function rec parse_macro_param(s,n,acc) {
 	match s {
-	| [< (ParentOpen,p) >] -> (EData "(",p) :: parse_macro_param s
-//	| [< (ParentClose,p) >] -> (EData ")",p) :: parse_macro_param s
-	| [< (Data d,p) >] -> (EData d,p) :: parse_macro_param s
-	| [< (DoubleDot,p1); c, p2 = parse_construct s p1 >] -> (EConstr c,punion p1 p2) :: parse_macro_param s
-	| [< >] -> []
+	| [< (BraceOpen,p) >] -> parse_macro_param s (n + 1) ((EData "{",p) :: acc)
+	| [< (BraceClose,p) >] -> if n == 0 then throw Stream_error; parse_macro_param s (n - 1) ((EData "}",p) :: acc)
+	| [< (ParentOpen,p) >] -> parse_macro_param s n ((EData "(",p) :: acc)
+	| [< (Data d,p) >] -> parse_macro_param s n ((EData d,p) :: acc)
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> parse_macro_param s n ((EConstr c,punion p1 p2) :: acc)
+	| [< >] -> (acc,n)
 	}
 }
 
@@ -160,6 +205,15 @@ function rec parse_expr(s) {
 	| [< (Float f,p) >] -> parse_expr_next s (EConst (CFloat f),p)
 	| [< (String str,p) >] -> parse_expr_next s (EConst (CString str),p)
 	| [< (Ident id,p) >] -> parse_expr_next s (EIdent id,p)
+	| [< (ParentOpen,p1); e = parse_expr s; (ParentClose,p2) >] -> parse_expr_next s (EParent e,punion p1 p2)
+	| [< (Keyword KIf,p1); cond = parse_expr s; e1 = parse_expr s >] ->
+		match s {
+		| [< (Keyword KElse,_); e2 = parse_expr s >] -> (EIf cond e1 Some(e2), punion p1 snd(e2))
+		| [< >] -> (EIf cond e1 None, punion p1 snd(e1))
+		}
+	| [< (Op op,p) >] ->
+		if !(List.mem op unopsPrefix) then throw Stream_error;
+		(EUnop op true parse_expr(s),p)
 	}
 }
 
@@ -169,7 +223,8 @@ function rec parse_expr_next(s,e1) {
 	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)
 	| [< (ParentOpen,_); (ParentClose,p2) >] -> parse_expr_next s (ECall e1 [],punion p1 p2)
 	| [< (ParentOpen,_); args, p2 = parse_expr_args s [] >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
-	| [< (Op op,_); e2 = parse_expr s >] -> (EBinop op e1 e2, punion p1 (snd e2)) // TODO : priority
+	// ********** TODO ******* : priority
+	| [< (Op op,_); e2 = parse_expr s >] -> (EBinop op e1 e2, punion p1 (snd e2)) 
 	| [< >] -> e1
 	}
 }
@@ -190,8 +245,9 @@ function parse(lexer) {
 		var t = Lexer.token lexer (match *cur {
 			| MElement -> *Templo.Lexer.element
 			| MExpr -> *Templo.Lexer.expr
-			| MAttribute -> *Templo.Lexer.attribute
-			| MMacro -> *Templo.Lexer.macro
+			| MAttributes -> *Templo.Lexer.attributes
+			| MAttrValue -> *Templo.Lexer.attrvalue
+			| MMacro -> *Templo.Lexer.macros
 		});
 		last := t;
 		t
@@ -200,8 +256,8 @@ function parse(lexer) {
 		cur := MElement;
 		var el, enode = program (stream next_token) [];
 		match enode {
-		| None -> el
-		| Some _ -> throw Stream_error
+		| Eof -> el
+		| _ -> throw Stream_error
 		}
 	} catch {
 		Stream_error -> error Unexpected(fst(*last)) snd(*last)

@@ -46,7 +46,7 @@ type construct {
 	CElseIf : expr;
 	CElse;
 	CForeach : (string,expr);
-	CFill : (string,expr);
+	CFill : string;
 	CUse : expr;
 	CSet : (string,expr);
 	CEnd;
@@ -60,7 +60,7 @@ type macro {
 type node {
 	mutable n_node : string;
 	mutable n_attributes : (string,elt list) list;
-	mutable n_macros : macro list;
+	mutable n_macros : (macro, pos) list;
 	mutable n_cond : expr option;
 	mutable n_repeat : (string,expr) option;
 	mutable n_attrs : (string,expr) list;

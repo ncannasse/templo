@@ -36,6 +36,8 @@ type token {
 	EndNode : string;
 	// node
 	NodeContent : bool;
+	// attrib value
+	Quote : bool;
 	// expr
 	Dot;
 	Int : int;
@@ -111,6 +113,7 @@ function s_token(t) {
 	| BraceClose -> "}"
 	| NodeContent b -> if b then ">" else "/>"
 	| Op s -> s
+	| Quote b -> if b then "\"" else "'"
 	| Eof -> "<eof>"
 	}
 }
@@ -142,11 +145,6 @@ function mk_data(l) {
 	mk l Data(Lexer.current l)
 }
 
-function mk_macro(l) {
-	var str = Lexer.current l;
-	mk l Macro(String.sub str 2 (String.length str - 2))
-}
-
 function mk_string(f,l) {
 	var p1 = Lexer.curpos l;
 	var buf = Lexer.data l;
@@ -170,13 +168,20 @@ var ident = "[a-zA-Z_][-a-zA-Z0-9_]*";
 var spaces = "[ \r\t\n]+";
 
 var element = &Lexer.empty();
-var attribute = &Lexer.empty();
-var macro = &Lexer.empty();
+var attributes = &Lexer.empty();
+var attrvalue = &Lexer.empty();
+var macros = &Lexer.empty();
 var expr = &Lexer.empty();
 var estring = &Lexer.empty();
 var eqstring = &Lexer.empty();
 var ecomment = &Lexer.empty();
 
+var macro = ("$$"+ident,function(l) {
+	var str = Lexer.current l;
+	mk l Macro(String.sub str 2 (String.length str - 2))
+});
+
+var ddot = ("::",function(l) mk l DoubleDot);
 
 function comment(l) {
 	Lexer.token l (*ecomment)
@@ -202,7 +207,7 @@ element := Lexer.build [
 		var str = Lexer.current l;
 		mk l Node(String.sub str 1 (String.length str - 1))
 	});
-	("$$"+ident, mk_macro);
+	macro;
 	("<!--", function(l) {
 		var p1 = Lexer.curpos l;
 		var buf = Lexer.data l;
@@ -215,17 +220,17 @@ element := Lexer.build [
 		var str = Lexer.current l;
 		mk l EndNode(String.sub str 2 (String.length str - 3))
 	});
-	("::", function(l) mk l DoubleDot);	
+	ddot;	
 	("[:$]", mk_data);
 	("[^:$<>]+", mk_data);
 ] invalid_char;
 
-attribute := Lexer.build [
-	("$$"+ident, mk_macro);
-	("[ \r\t\n]+", function(l) { Lexer.token l (*attribute) });
+attributes := Lexer.build [
+	macro;
+	("[ \r\t\n]+", function(l) { Lexer.token l (*attributes) });
 	(">", function(l) mk l NodeContent(true));
 	("/>", function(l) mk l NodeContent(false));
-	("::", function(l) mk l DoubleDot);	
+	ddot;	
 	(ident, mk_ident);
 	("=", function(l) mk l Op("="));
 	("\"", function(l) {
@@ -238,14 +243,23 @@ attribute := Lexer.build [
 	});
 ] invalid_char;
 
-macro := Lexer.build [
+attrvalue := Lexer.build [
+	macro;
+	ddot;
+	("'", function(l) mk l Quote(false));
+	("\"", function(l) mk l Quote(true));
+	("[:$]", mk_data );
+	("[^'\"\r\n$:]+", mk_data);
+] invalid_char;
+
+macros := Lexer.build [
 	(",", function(l) { mk l Comma });
 	("(", function(l) { mk l ParentOpen });
 	(")", function(l) { mk l ParentClose });
 	("{", function(l) { mk l BraceOpen });
 	("}", function(l) { mk l BraceClose });
-	("$$"+ident, mk_macro);
-	("::", function(l) mk l DoubleDot);
+	macro;
+	ddot;
 	("[:$]", mk_data);
 	("[^:$,(){}]+", mk_data);
 ] invalid_char;
@@ -278,7 +292,7 @@ expr := Lexer.build [
 		var str, p = mk_string qstr l;
 		(String str, p)
 	});
-	("::", function(l) mk l DoubleDot);
+	ddot;
 ] invalid_char;
 
 estring := Lexer.build [
