@@ -1,0 +1,84 @@
+/*
+ *  Templo compiler
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+
+type pos = Lexer.pos
+
+type expr
+type elt
+
+type constant {
+	CInt : int;
+	CString : string;
+	CFloat : string;
+}
+
+type expr_def {
+	EConst : constant;
+	EIdent : string;
+	EIf : (expr,expr,expr option);
+	EBinop : (string,expr,expr);
+	EUnop : (string,bool,expr);
+	ECall : (expr,expr list);
+	EParent : expr;
+	EField : (expr,string);
+	EArray : (expr,expr);
+	EArrayDecl : expr list;
+}
+
+type expr = (expr_def,pos)
+
+type construct {
+	CValue : expr;
+	CRaw : expr;
+	CIf : expr;
+	CElseIf : expr;
+	CElse;
+	CForeach : (string,expr);
+	CFill : (string,expr);
+	CUse : expr;
+	CSet : (string,expr);
+	CEnd;
+}
+
+type macro {
+	m_name : string;
+	m_params : elt list list;
+}
+
+type node {
+	mutable n_node : string;
+	mutable n_attributes : (string,elt list) list;
+	mutable n_macros : macro list;
+	mutable n_cond : expr option;
+	mutable n_repeat : (string,expr) option;
+	mutable n_attrs : (string,expr) list;
+	mutable n_content : elt list option;
+}
+
+type elt_def {
+	ENode : node;
+	EMacro : macro;
+	EComment : string;
+	EData : string;
+	ECData : elt list;
+	EConstr : construct;
+}
+
+type elt = (elt_def,pos)
+
+
+var opPriority = ["=";"||";"&&";"==";"!=";">";"<";">=";"<=";"|";"&";"^";"<<";">>";">>>";"+";"-";"*";"/";"%"];
+var unopsPrefix = ["!";"++";"--";"-"];
+var unopsSuffix = ["++";"--"];

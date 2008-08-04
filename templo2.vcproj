@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Visual C++"
+	Version="7.10"
+	Name="templo2"
+	ProjectGUID="{198B5A06-8037-4ADB-BD2F-7B8E55BBC64B}"
+	Keyword="MakeFileProj">
+	<Platforms>
+		<Platform
+			Name="Win32"/>
+	</Platforms>
+	<Configurations>
+		<Configuration
+			Name="Debug|Win32"
+			OutputDirectory="Debug"
+			IntermediateDirectory="Debug"
+			ConfigurationType="0">
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="make"
+				Output="temploc.exe"/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="Release"
+			IntermediateDirectory="Release"
+			ConfigurationType="0">
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="nmake"/>
+		</Configuration>
+	</Configurations>
+	<References>
+	</References>
+	<Files>
+		<File
+			RelativePath=".\templo\Ast.nml">
+		</File>
+		<File
+			RelativePath=".\templo\Lexer.nml">
+		</File>
+		<File
+			RelativePath=".\templo\Main.nml">
+		</File>
+		<File
+			RelativePath=".\templo\Parser.nml">
+		</File>
+	</Files>
+	<Globals>
+	</Globals>
+</VisualStudioProject>

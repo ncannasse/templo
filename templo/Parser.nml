@@ -1,0 +1,209 @@
+/*
+ *  Hss Format
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+open Lexer;
+open Templo.Lexer;
+open Templo.Ast;
+
+type error_msg {
+	Unexpected : token;
+	Message : string;
+	Unclosed_node : string;
+}
+
+exception Error : (error_msg , pos)
+
+type mode {
+	MElement;
+	MExpr;
+	MAttribute;
+	MMacro;
+}
+
+var cur = &MElement
+
+function error_msg(m) {
+	match m {
+	| Unexpected t -> "Unexpected " + s_token t
+	| Unclosed_node s -> "The node " + s + " has not been closed"
+	| Message s -> s
+	}
+}
+
+function error(m,p) {
+	throw Error(m,p)
+}
+
+function mk(t,p) {
+	(t,p)
+}
+
+function rec program(s,acc) {
+	match s {
+	| [< (Eof,_) >] -> (List.rev acc, None)
+	| [< (EndNode n,_) >] -> (List.rev acc, Some n)
+	| [< e = parse_element s >] -> program s (e :: acc)
+	}
+}
+
+function rec parse_element(s) {
+	match s {
+	| [< (Data str,p) >] -> (EData str, p)
+	| [< (Comment n,p) >] -> (EComment n, p)
+	| [< (DoubleDot,p1); c, p2 = parse_construct s p1 >] -> (EConstr(c), punion p1 p2)
+	| [< (Node n,p); node = parse_node s n p >] -> node
+	| [< (Macro n,p); macro = parse_macro s n p >] -> macro
+	}
+}
+
+function rec parse_construct(s,p1) {
+	var old = *cur;
+	cur := MExpr;
+	var c = match s {
+	| [< (Ident "use",_); e = parse_expr s >] -> CUse e
+	| [< (Ident "raw",_); e = parse_expr s >] -> CRaw e
+	| [< (Ident "set",_); (Ident value,_); (Op "=",_); e = parse_expr s >] -> CSet value e
+	| [< e = parse_expr s >] -> CValue e
+	}
+	cur := old;
+	match s {
+	| [< (DoubleDot,p2) >] -> (c, p2)	
+	}
+}
+
+function rec parse_node(s,n,p1) {
+	var n = {
+		n_node = n;
+		n_attributes = [];
+		n_macros = [];
+		n_cond = None;
+		n_repeat = None;
+		n_attrs = [];
+		n_content = None;
+	};
+	cur := MAttribute;
+	var content, p2 = parse_node_attribs s n;
+    cur := MElement;
+	if content then {
+		var content, enode = program s [];
+		match enode {
+		| None -> error Unclosed_node(n.n_node) p1
+		| Some name -> if n.n_node != name then throw Stream_error;
+		}		
+		n.n_content := Some content;
+	}
+	(ENode n, punion p1 p2)
+}
+
+function rec parse_node_attribs(s,n) {
+	match s {
+	| [< (NodeContent c,p) >] -> (c, p)
+	| [< (DoubleDot,_) >] ->
+		cur := MExpr;
+		match s {
+		| [< (Ident "cond",_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
+		| [< (Ident "attr",_); (Ident attr,_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
+		| [< (Ident "repeat",_); (Ident v,_); e = parse_expr s; (DoubleDot,_) >] -> /* TODO */ ()
+		}
+		cur := MAttribute;
+		parse_node_attribs s n
+	| [< (Ident attr,p1); (Op "=",_); (String value,p2) >] ->
+		// TODO : parse value ?
+		parse_node_attribs s n
+	}
+}
+
+function rec parse_macro(s,n,p1) {
+	cur := MMacro;
+	var el, p2 = match s {
+	| [< (ParentOpen,_); (ParentClose,p2); >] -> ([],p2)
+	| [< (ParentOpen,_); inf = parse_macro_params s []; >] -> inf
+	}
+	cur := MElement;	
+	(EMacro ({ m_name = n; m_params = el; }), punion p1 p2)
+}
+
+function rec parse_macro_params(s,acc) {
+	match s {
+	| [< p = parse_macro_param s >] ->
+		match s {
+		| [< (Comma,_) >] -> parse_macro_params s (p :: acc)
+		| [< (ParentClose,p2) >] -> (List.rev (p :: acc), p2)
+		}
+	}
+}
+
+function rec parse_macro_param(s) {
+	match s {
+	| [< (ParentOpen,p) >] -> (EData "(",p) :: parse_macro_param s
+//	| [< (ParentClose,p) >] -> (EData ")",p) :: parse_macro_param s
+	| [< (Data d,p) >] -> (EData d,p) :: parse_macro_param s
+	| [< (DoubleDot,p1); c, p2 = parse_construct s p1 >] -> (EConstr c,punion p1 p2) :: parse_macro_param s
+	| [< >] -> []
+	}
+}
+
+function rec parse_expr(s) {
+	match s {
+	| [< (Int i,p) >] -> parse_expr_next s (EConst (CInt i),p)
+	| [< (Float f,p) >] -> parse_expr_next s (EConst (CFloat f),p)
+	| [< (String str,p) >] -> parse_expr_next s (EConst (CString str),p)
+	| [< (Ident id,p) >] -> parse_expr_next s (EIdent id,p)
+	}
+}
+
+function rec parse_expr_next(s,e1) {
+	var p1 = snd e1;
+	match s {
+	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)
+	| [< (ParentOpen,_); (ParentClose,p2) >] -> parse_expr_next s (ECall e1 [],punion p1 p2)
+	| [< (ParentOpen,_); args, p2 = parse_expr_args s [] >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
+	| [< (Op op,_); e2 = parse_expr s >] -> (EBinop op e1 e2, punion p1 (snd e2)) // TODO : priority
+	| [< >] -> e1
+	}
+}
+
+function rec parse_expr_args(s,acc) {
+	match s {
+	| [< e = parse_expr s >] ->
+		match s {
+		| [< (Comma,_) >] -> parse_expr_args s (e :: acc)
+		| [< (ParentClose,p2) >] -> (List.rev (e :: acc), p2)
+		}
+	}
+}
+
+function parse(lexer) {
+	var last = &(Eof,null_pos);
+	function rec next_token() {
+		var t = Lexer.token lexer (match *cur {
+			| MElement -> *Templo.Lexer.element
+			| MExpr -> *Templo.Lexer.expr
+			| MAttribute -> *Templo.Lexer.attribute
+			| MMacro -> *Templo.Lexer.macro
+		});
+		last := t;
+		t
+	}
+	try {
+		cur := MElement;
+		var el, enode = program (stream next_token) [];
+		match enode {
+		| None -> el
+		| Some _ -> throw Stream_error
+		}
+	} catch {
+		Stream_error -> error Unexpected(fst(*last)) snd(*last)
+	}
+}
