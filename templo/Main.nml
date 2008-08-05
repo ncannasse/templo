@@ -14,9 +14,6 @@
  */
 open Templo.Ast;
 
-var must_be_empty = ["area";"base";"basefont";"br";"col";"frame";"hr";"img";"input";"isindex";"link";"meta";"param"];
-var boolean_attributes = ["compact";"nowrap";"ismap";"declare";"noshade";"checked";"disabled";"readonly";"multiple";"selected";"noresize";"defer"]
-
 function report(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -26,26 +23,41 @@ function report(msg,p) {
 	Sys.exit(-1);
 }
 
+function parse(file) {
+	var ch = IO.read_file file true;
+	var lex = Lexer.create Buffer.create();
+	Lexer.input lex file ch 1 0;
+	var el = Templo.Parser.parse lex;
+	IO.close_in ch;
+	el
+}
+
 try {
 	var head = "Temploc v2.0 - (c)2008 Motion-Twin\nUsage : temploc [options] <files>";
 	var files = &[];
 	var output = &None;
+	var chk = Templo.Checker.init();
+	var macros = &[];
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
+		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
-	List.iter (function(file) {
-		// parse
-		var ch = IO.read_file file true;
-		var lex = Lexer.create Buffer.create();
-		Lexer.input lex file ch 1 0;
-		var el = Templo.Parser.parse lex;
-		IO.close_in ch;
-		print el;
-	}) (*files);
+	var macros = List.map (function(file) {
+		var el = parse file;
+		var el = Templo.Checker.add_macros chk file el;
+		var deps = Templo.Checker.run chk el;
+		(file,el,deps)
+	}) List.rev(*macros);
+	var files = List.map (function(file) {
+		var el = parse file;
+		var deps = Templo.Checker.run chk el;
+		(file,el,deps)
+	}) List.rev(*files);
 } catch {
 	| Templo.Lexer.Error(msg,pos) -> report Templo.Lexer.error_msg(msg) pos
 	| Templo.Parser.Error(msg,pos) -> report Templo.Parser.error_msg(msg) pos
+	| Templo.Checker.Error(msg,pos) -> report msg pos
 	| e ->
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" string(e);

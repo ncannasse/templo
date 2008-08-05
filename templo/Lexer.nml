@@ -52,7 +52,8 @@ type token {
 	BraceClose;
 	BracketOpen;
 	BracketClose;
-	Op : string;
+	Op : op;
+	Unop : unop;
 	// eof
 	Eof;
 }
@@ -62,6 +63,7 @@ type error_msg {
 	Unterminated_string;
 	Invalid_escape;
 	Unclosed_comment;
+	Invalid_op : string;
 }
 
 exception Error : (error_msg , Lexer.pos)
@@ -73,6 +75,7 @@ function error_msg(msg) {
 	| Invalid_escape -> "Invalid escaped char"
 	| Unterminated_string -> "Unterminated string"
 	| Unclosed_comment -> "Unclosed comment"
+	| Invalid_op s -> "Invalid operation '" + s+ "'"
 	}
 }
 
@@ -112,18 +115,23 @@ function s_token(t) {
 	| BraceOpen -> "{"
 	| BraceClose -> "}"
 	| NodeContent b -> if b then ">" else "/>"
-	| Op s -> s
+	| Op op -> s_op op
+	| Unop op -> s_unop op
 	| Quote b -> if b then "\"" else "'"
 	| Eof -> "<eof>"
 	}
 }
 
-var keywords = {
-	var h = Hashtbl.create();
-	List.iter (function(k) { Hashtbl.add h (s_keyword k) k })
-	[KIf;KElse;KVar;KWhile;KFor;KBreak;KContinue;KFunction;KReturn];
-	h
+function dict(f,l) {
+	List.fold (function(acc,o) Map.add acc (f o) o) Map.empty() l
 }
+
+var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KFor;KBreak;KContinue;KFunction;KReturn];
+
+var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
+	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod];
+
+var unops = dict s_unop [Increment;Decrement;Not;Neg]
 
 function error(l,msg) {
 	throw Error(msg,Lexer.curpos l)
@@ -157,7 +165,7 @@ function mk_string(f,l) {
 function mk_ident(l) {
 	var id = Lexer.current l;
 	try {
-		var k = Hashtbl.find keywords id;
+		var k = Map.find keywords id;
 		mk l Keyword(k)
 	} catch {
 		Not_found -> mk l Ident(id)
@@ -166,6 +174,7 @@ function mk_ident(l) {
 
 var ident = "[a-zA-Z_][-a-zA-Z0-9_]*";
 var spaces = "[ \r\t\n]+";
+var bom = "\239\187\191";
 
 var element = &Lexer.empty();
 var attributes = &Lexer.empty();
@@ -203,6 +212,7 @@ function invalid_char(l) {
 }
 
 element := Lexer.build [
+	(bom, function(l) Lexer.token l (*element));
 	("<"+ident, function(l) {
 		var str = Lexer.current l;
 		mk l Node(String.sub str 1 (String.length str - 1))
@@ -216,11 +226,14 @@ element := Lexer.build [
 		var p2 = Lexer.curpos l;
 		(Comment(Buffer.string buf) , Lexer.punion p1 p2)
 	});
+	("<!DOCTYPE[^>]+>", function(l) {
+		mk l Comment(Lexer.current l)
+	});
 	("</"+ident+">", function(l) {
 		var str = Lexer.current l;
 		mk l EndNode(String.sub str 2 (String.length str - 3))
 	});
-	ddot;	
+	ddot;
 	("[:$]", mk_data);
 	("[^:$<>]+", mk_data);
 ] invalid_char;
@@ -230,17 +243,11 @@ attributes := Lexer.build [
 	("[ \r\t\n]+", function(l) { Lexer.token l (*attributes) });
 	(">", function(l) mk l NodeContent(true));
 	("/>", function(l) mk l NodeContent(false));
-	ddot;	
+	ddot;
 	(ident, mk_ident);
-	("=", function(l) mk l Op("="));
-	("\"", function(l) {
-		var str, p = mk_string str l;
-		(String str, p)
-	});
-	("'", function(l) {
-		var str, p = mk_string qstr l;
-		(String str, p)
-	});
+	("=", function(l) mk l Op(OpAssign));
+	("'", function(l) mk l Quote(false));
+	("\"", function(l) mk l Quote(true));
 ] invalid_char;
 
 attrvalue := Lexer.build [
@@ -277,7 +284,15 @@ expr := Lexer.build [
 	(")", function(l) { mk l ParentClose });
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
-	("[-+*/=&|^!<>%]+", function(l) { mk l Op(Lexer.current l) });
+	("[-+*/=&|^!<>%]+", function(l) {
+		var str = Lexer.current l;
+		var op = try Op (Map.find ops str) catch {
+			Not_found -> try Unop (Map.find unops str) catch {
+				Not_found -> error l Invalid_op(str)
+			}
+		};
+		mk l op
+	});
 	(spaces, function(l) { Lexer.token l (*expr) });
 	("0", mk_int);
 	("-?[1-9][0-9]*", mk_int);

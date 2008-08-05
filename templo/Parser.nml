@@ -34,6 +34,48 @@ type mode {
 
 var cur = &MElement
 
+function priority(op) {
+	match op {
+	| OpAssign -> -4
+	| OpBoolOr -> -3
+	| OpBoolAnd -> -2
+	| OpEq | OpNotEq | OpGt | OpLt | OpGte | OpLte -> -1
+	| OpOr | OpAnd | OpXor -> 0
+	| OpShl | OpShr | OpUShr -> 1
+	| OpAdd | OpSub -> 2
+	| OpMult | OpDiv -> 3
+	| OpMod -> 4
+	}
+}
+
+function can_swap(_op,op) {
+	var p1 = priority _op;
+	var p2 = priority op;
+	if p1 < p2 then
+		true
+	else if p1 == p2 && p1 >= 0 then // numerical ops are left-assoc
+		true
+	else
+		false
+}
+
+function rec make_binop(op,e,e2) {
+	match fst e2 {
+	| EBinop (_op,_e,_e2) when can_swap _op op ->
+		var _e = make_binop op e _e;
+		(EBinop _op _e _e2, punion snd(_e) snd(_e2))
+	| _ ->
+		(EBinop op e e2, punion snd(e) snd(e2))
+	}
+}
+
+function rec make_unop(op,e,p1) {
+	match e {
+	| (EBinop (bop,e,e2),p2) -> (EBinop bop (make_unop op e p1) e2, punion p1 p2)
+	| (_,p2) -> (EUnop op true e, punion p1 p2)
+	}
+}
+
 function error_msg(m) {
 	match m {
 	| Unexpected t -> "Unexpected " + s_token t
@@ -63,8 +105,8 @@ function rec parse_element(s) {
 	| [< (Data str,p) >] -> (EData str, p)
 	| [< (Comment n,p) >] -> (EComment n, p)
 	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c, punion p1 p2)
-	| [< (Node n,p); node = parse_node s n p >] -> node
-	| [< (Macro n,p1); macro = parse_macro s n >] -> (EMacro macro, p1)
+	| [< (Node n,p); node = if n == "macro" then parse_macro_def s p else parse_node s n p >] -> node
+	| [< (Macro m,p1); params = parse_macro s >] -> (EMacroCall m params, p1)
 	}
 }
 
@@ -74,17 +116,64 @@ function rec parse_construct(s) {
 	var c = match s {
 	| [< (Ident "use",_); e = parse_expr s >] -> CUse e
 	| [< (Ident "raw",_); e = parse_expr s >] -> CRaw e
-	| [< (Ident "set",_); (Ident value,_); (Op "=",_); e = parse_expr s >] -> CSet value e
+	| [< (Ident "set",_); (Ident value,_); (Op OpAssign,_); e = parse_expr s >] -> CSet value e
 	| [< (Keyword KIf,_); e = parse_expr s >] -> CIf e
 	| [< (Keyword KElse,_) >] -> CElse
 	| [< (Ident "elseif",_); e = parse_expr s >] -> CElseIf e
 	| [< (Ident "foreach",_); (Ident k,_); e = parse_expr s >] -> CForeach k e
 	| [< (Ident "fill",_); (Ident k,_); >] -> CFill k
+	| [< (Ident "end",_) >] -> CEnd
 	| [< e = parse_expr s >] -> CValue e
 	}
 	cur := old;
 	match s {
 	| [< (DoubleDot,p2) >] -> (c,p2)
+	}
+}
+
+function rec parse_macro_def(s,p1) {
+	cur := MAttributes;
+	// parse name attribute
+	var name, args = match s {
+	| [< (Ident "name",_); (Op OpAssign,_); (Quote b,_); (Ident name,_) >] ->
+		cur := MExpr;
+		var params = match s {
+		| [< (ParentOpen,_) >] -> parse_macro_args s
+		}
+		cur := MAttributes;
+		match s {
+		| [< (Quote b2,_) >] -> if b != b2 then throw Stream_error;
+		}
+		(name,params)
+	}
+	var content, p2 = match s {
+	| [< (NodeContent b,p2) >] -> (b, p2)
+	}
+	cur := MElement;
+	var content = if !content then [] else {
+		var content, enode = program s [];
+		match enode {
+		| EndNode "macro" -> ()
+		| _ -> error Unclosed_node("macro") p1
+		}
+		content
+	};
+	var m = {
+		m_name = name;
+		m_args = args;
+		m_content = content;
+	};
+	(EMacroDef m, punion p1 p2)
+}
+
+function rec parse_macro_args(s) {
+	match s {
+	| [< (ParentClose,_) >] -> []
+	| [< (Ident i,_) >] ->
+		match s {
+		| [< (Comma,_) >] -> i :: parse_macro_args s
+		| [< (ParentClose,_) >] -> [i]
+		}
 	}
 }
 
@@ -109,7 +198,7 @@ function rec parse_node(s,n,p1) {
 		match enode {
 		| EndNode name -> if n.n_node != name then throw Stream_error;
 		| _ -> error Unclosed_node(n.n_node) p1
-		}		
+		}
 		n.n_content := Some content;
 	}
 	(ENode n, punion p1 p2)
@@ -121,7 +210,7 @@ function rec parse_node_attribs(s,node) {
 	| [< (DoubleDot,_) >] ->
 		cur := MExpr;
 		match s {
-		| [< (Ident "cond",p); e = parse_expr s; (DoubleDot,_) >] -> 
+		| [< (Ident "cond",p); e = parse_expr s; (DoubleDot,_) >] ->
 			match node.n_cond {
 			| None -> node.n_cond := Some e;
 			| Some _ -> error Message("Duplicate cond") p
@@ -132,11 +221,11 @@ function rec parse_node_attribs(s,node) {
 			match node.n_cond {
 			| None -> node.n_repeat := Some (v,e);
 			| Some _ -> error Message("Duplicate repeat") p
-			}			
+			}
 		}
 		cur := MAttributes;
 		parse_node_attribs s node
-	| [< (Ident attr,_); (Op "=",_) >] ->
+	| [< (Ident attr,_); (Op OpAssign,_) >] ->
 		cur := MAttrValue;
 		var v = match s {
 		| [< (Quote b,_); v = parse_attrib_value s b >] -> v
@@ -144,8 +233,8 @@ function rec parse_node_attribs(s,node) {
 		cur := MAttributes;
 		node.n_attributes := (attr,v) :: node.n_attributes;
 		parse_node_attribs s node
-	| [< (Macro n,p1); m = parse_macro s n >] ->
-		node.n_macros := (m,p1) :: node.n_macros;
+	| [< (Macro m,p1); params = parse_macro s >] ->
+		node.n_macros := (m,p1,params) :: node.n_macros;
 		parse_node_attribs s node
 	}
 }
@@ -154,12 +243,12 @@ function rec parse_attrib_value(s,b) {
 	match s {
 	| [< (Data str,p) >] -> (EData str,p) :: parse_attrib_value s b
 	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c,punion p1 p2) :: parse_attrib_value s b
-	| [< (Macro n,p1); m = parse_macro s n >] -> (EMacro m, p1) :: parse_attrib_value s b
+	| [< (Macro m,p1); params = parse_macro s >] -> (EMacroCall m params, p1) :: parse_attrib_value s b
 	| [< (Quote b2,p) >] -> if b == b2 then [] else (EData (s_token Quote(b2)),p) :: parse_attrib_value s b
 	}
 }
 
-function rec parse_macro(s,n) {
+function rec parse_macro(s) {
 	var old = *cur;
 	cur := MMacro;
 	var el = match s {
@@ -167,14 +256,14 @@ function rec parse_macro(s,n) {
 	| [< (ParentOpen,_); el = parse_macro_params s [] 0 []; >] -> el
 	}
 	cur := old;
-	{ m_name = n; m_params = el; }
+	el
 }
 
 function rec parse_macro_params(s,acc,n,pacc) {
 	match s {
 	| [< vl, n = parse_macro_param s n pacc >] ->
 		match s {
-		| [< (Comma,p) >] -> 
+		| [< (Comma,p) >] ->
 			if n == 0 then
 				parse_macro_params s (List.rev(vl) :: acc) 0 []
 			else
@@ -211,31 +300,34 @@ function rec parse_expr(s) {
 		| [< (Keyword KElse,_); e2 = parse_expr s >] -> (EIf cond e1 Some(e2), punion p1 snd(e2))
 		| [< >] -> (EIf cond e1 None, punion p1 snd(e1))
 		}
-	| [< (Op op,p) >] ->
-		if !(List.mem op unopsPrefix) then throw Stream_error;
-		(EUnop op true parse_expr(s),p)
+	| [< (Unop op,p) >] ->
+		make_unop op parse_expr(s) p
+	| [< (BracketOpen,p1); el = parse_expr_list s; (BracketClose,p2) >] ->
+		parse_expr_next s (EArrayDecl el, punion p1 p2)
 	}
 }
 
 function rec parse_expr_next(s,e1) {
 	var p1 = snd e1;
 	match s {
-	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)
-	| [< (ParentOpen,_); (ParentClose,p2) >] -> parse_expr_next s (ECall e1 [],punion p1 p2)
-	| [< (ParentOpen,_); args, p2 = parse_expr_args s [] >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
-	// ********** TODO ******* : priority
-	| [< (Op op,_); e2 = parse_expr s >] -> (EBinop op e1 e2, punion p1 (snd e2)) 
+	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)	
+	| [< (ParentOpen,_); args = parse_expr_list s; (ParentClose,p2) >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
+	| [< (Op op,_); e2 = parse_expr s >] -> make_binop op e1 e2
+	| [< (Unop op,p) >] -> parse_expr_next s (EUnop op false e1,p)
+	| [< (BracketOpen,_); e2 = parse_expr s; (BracketClose,p2) >] -> parse_expr_next s (EArray e1 e2, punion snd(e1) p2)
 	| [< >] -> e1
 	}
 }
 
-function rec parse_expr_args(s,acc) {
+function rec parse_expr_list(s) {
 	match s {
 	| [< e = parse_expr s >] ->
 		match s {
-		| [< (Comma,_) >] -> parse_expr_args s (e :: acc)
-		| [< (ParentClose,p2) >] -> (List.rev (e :: acc), p2)
+		| [< (Comma,_) >] -> e :: parse_expr_list s
+		| [< >] -> [e]
 		}
+	| [< >] ->
+		[]
 	}
 }
 

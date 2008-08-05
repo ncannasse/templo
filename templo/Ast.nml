@@ -18,6 +18,37 @@ type pos = Lexer.pos
 type expr
 type elt
 
+type op {
+	OpAdd;
+	OpMult;
+	OpDiv;
+	OpSub;
+	OpAssign;
+	OpEq;
+	OpNotEq;
+	OpGt;
+	OpGte;
+	OpLt;
+	OpLte;
+	OpAnd;
+	OpOr;
+	OpXor;
+	OpBoolAnd;
+	OpBoolOr;
+	OpShl;
+	OpShr;
+	OpUShr;
+	OpMod;
+}
+
+type unop {
+	Increment;
+	Decrement;
+	Not;
+	Neg;
+}
+
+
 type constant {
 	CInt : int;
 	CString : string;
@@ -27,9 +58,10 @@ type constant {
 type expr_def {
 	EConst : constant;
 	EIdent : string;
+	EMacroArg : string;
 	EIf : (expr,expr,expr option);
-	EBinop : (string,expr,expr);
-	EUnop : (string,bool,expr);
+	EBinop : (op,expr,expr);
+	EUnop : (unop,bool,expr);
 	ECall : (expr,expr list);
 	EParent : expr;
 	EField : (expr,string);
@@ -38,6 +70,8 @@ type expr_def {
 }
 
 type expr = (expr_def,pos)
+
+type content = elt list
 
 type construct {
 	CValue : expr;
@@ -52,33 +86,64 @@ type construct {
 	CEnd;
 }
 
-type macro {
-	m_name : string;
-	m_params : elt list list;
-}
-
 type node {
 	mutable n_node : string;
-	mutable n_attributes : (string,elt list) list;
-	mutable n_macros : (macro, pos) list;
+	mutable n_attributes : (string,content) list;
+	mutable n_macros : (string, pos, content list) list;
 	mutable n_cond : expr option;
 	mutable n_repeat : (string,expr) option;
 	mutable n_attrs : (string,expr) list;
-	mutable n_content : elt list option;
+	mutable n_content : content option;
+}
+
+type macro {
+	m_name : string;
+	m_args : string list;
+	m_content : content;
 }
 
 type elt_def {
 	ENode : node;
-	EMacro : macro;
+	EMacroCall : (string, content list);
+	EMacroDef : macro;
 	EComment : string;
 	EData : string;
-	ECData : elt list;
+	ECData : content;
 	EConstr : construct;
 }
 
 type elt = (elt_def,pos)
 
+function s_op(o) {
+	match o {
+	| OpAdd -> "+"
+	| OpMult -> "*"
+	| OpDiv -> "/"
+	| OpSub -> "-"
+	| OpAssign -> "="
+	| OpEq -> "=="
+	| OpNotEq -> "!="
+	| OpGte -> ">="
+	| OpLte -> "<="
+	| OpGt -> ">"
+	| OpLt -> "<"
+	| OpAnd -> "&"
+	| OpOr -> "|"
+	| OpXor -> "^"
+	| OpBoolAnd -> "&&"
+	| OpBoolOr -> "||"
+	| OpShr -> ">>"
+	| OpUShr -> ">>>"
+	| OpShl -> "<<"
+	| OpMod -> "%"
+	}
+}
 
-var opPriority = ["=";"||";"&&";"==";"!=";">";"<";">=";"<=";"|";"&";"^";"<<";">>";">>>";"+";"-";"*";"/";"%"];
-var unopsPrefix = ["!";"++";"--";"-"];
-var unopsSuffix = ["++";"--"];
+function s_unop(o) {
+	match o {
+	| Increment -> "++"
+	| Decrement -> "--"
+	| Not -> "!"
+	| Neg -> "-"
+	}
+}

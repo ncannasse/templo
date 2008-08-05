@@ -37,6 +37,9 @@
 			RelativePath=".\templo\Ast.nml">
 		</File>
 		<File
+			RelativePath=".\templo\Checker.nml">
+		</File>
+		<File
 			RelativePath=".\templo\Lexer.nml">
 		</File>
 		<File

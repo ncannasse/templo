@@ -1,0 +1,230 @@
+/*
+ *  Templo compiler
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+open Templo.Ast;
+
+type macro_file {
+	file : string;
+	mutable used : bool;
+}
+
+type checker {
+	mutable macro_files : macro_file list;
+	mutable macros : ((string,int), macro_file option) Map.t;
+}
+
+exception Error : (string, pos);
+
+function error(msg,pos) {
+	throw Error(msg,pos)
+}
+
+function init() {
+	{
+		macro_files = [];
+		macros = Map.empty();
+	}
+}
+
+function build_macro_expr(args,e) {
+	function rec loop(e) {
+		(match fst e {
+		| EIdent i when List.mem i args -> EMacroArg i
+		| EIf (e,e1,e2) -> EIf loop(e) loop(e1) (match e2 { None -> None | Some e -> Some (loop e) })
+		| EBinop (op,e1,e2) -> EBinop op loop(e1) loop(e2)
+		| EUnop (op,prefix,e) -> EUnop op prefix loop(e)
+		| ECall (e,el) -> ECall loop(e) (List.map loop el)
+		| EParent e -> EParent loop(e)
+		| EField (e,f) -> EField loop(e) f
+		| EArray (e1,e2) -> EArray loop(e1) loop(e2)
+		| EArrayDecl el -> EArrayDecl (List.map loop el)
+		| EConst _ | EIdent _ | EMacroArg _ -> fst e		
+		},snd e)
+	}
+	loop e	
+}
+
+function rec build_macro_content(args,c) {
+	List.map (build_macro_vars args) c
+}
+
+function rec build_macro_vars(args,e) {
+	(match fst e {
+	| ENode n ->
+		var n2 = {
+			n_node = n.n_node;
+			n_attributes = List.map (function((name,c)) (name,build_macro_content args c)) n.n_attributes;
+			n_macros = List.map (function((name,p,cl)) (name,p,List.map (build_macro_content args) cl)) n.n_macros;
+			n_cond = match n.n_cond { None -> None | Some e -> Some (build_macro_expr args e) };
+			n_repeat = match n.n_repeat { None -> None | Some (n,e) -> Some (n,build_macro_expr args e) };
+			n_attrs = List.map (function((n,e)) (n, build_macro_expr args e)) n.n_attrs;
+			n_content = None;
+		}
+		match n.n_repeat {
+		| None -> ()
+		| Some (k,e) -> if List.mem k args then error "Please use a variable name which is not a macro argument" snd(e)
+		}
+		n2.n_content := match n.n_content { None -> None | Some c -> Some (build_macro_content args c) };
+		ENode n2
+	| EMacroCall (name,el) ->
+		EMacroCall name (List.map (build_macro_content args) el)
+	| EMacroDef _ ->
+		error "Inner macros definitions are now allowed" snd(e)
+	| EComment _
+	| EData _ ->
+		fst e
+	| ECData el ->
+		ECData (build_macro_content args el)
+	| EConstr c ->
+		var c = match c {
+		| CValue e -> CValue (build_macro_expr args e)
+		| CRaw e -> CRaw (build_macro_expr args e)
+		| CIf e -> CIf (build_macro_expr args e)
+		| CElseIf e -> CElseIf (build_macro_expr args e)
+		| CForeach (k,ex) ->
+			if List.mem k args then error "Please use a variable name which is not a macro argument" snd(e);
+			CForeach k (build_macro_expr args ex)
+		| CUse e -> CUse (build_macro_expr args e)
+		| CSet (v,ex) ->
+			if List.mem v args then error "Please use a variable name which is not a macro argument" snd(e);
+			CSet v (build_macro_expr args ex)
+		| CElse
+		| CEnd
+		| CFill _ ->
+			c
+		}
+		EConstr c
+	}, snd e)
+}
+
+function rec add_macros(chk,file,el) {
+	var empty = Regexp.build "^[ \t\r\n]*$";
+	var file = { file = file; used = false };
+	chk.macro_files := file :: chk.macro_files;
+	var macros = &[];
+	function rec loop(e) {
+		match fst e {
+		| ENode n when n.n_node == "macros" ->
+			match n.n_content {
+			| None -> ()
+			| Some c -> List.iter loop c
+			}
+		| EMacroDef m ->
+			var m = {
+				m_name = m.m_name;
+				m_args = m.m_args;
+				m_content = build_macro_content m.m_args m.m_content;
+			};
+			macros := (EMacroDef m,snd e) :: *macros;
+			chk.macros := Map.add chk.macros (m.m_name,List.length m.m_args) Some(file);
+		| EComment _ -> ()
+		| EData r when Regexp.find empty r 0 String.length(r) -> ()
+		| _ -> error "This is not allowed in a macro file" snd(e)
+		}
+	}
+	List.iter loop el;
+	List.rev (*macros)
+}
+
+function rec check_macro(chk,name,params,pos) {
+	try {
+		match Map.find chk.macros (name,List.length params) {
+		| None -> ()
+		| Some f -> f.used := true
+		}
+	} catch {
+		Not_found ->
+			var nargs = &None;
+			Map.iter (function((name2,k),_) if name == name2 then nargs := Some k) chk.macros;
+			match *nargs {
+			| None -> error ("No such macro "+name) pos
+			| Some k -> error ("Macro "+name+" needs "+k+" parameters") pos
+			}
+	}
+	List.iter (function(p) check_rec chk p []) params;
+}
+
+function rec check_rec(chk,el,stack) {
+	match el {
+	| [] ->
+		match stack {
+		| [] -> ()
+		| (v,p) :: _ ->
+			var str = match v {
+			| CIf _ -> "if"
+			| CForeach _ -> "foreach"
+			| CFill _ -> "fill"
+			| CUse _ -> "use"
+			| _ -> "???"
+			}
+			error ("Unclosed " + str) p
+		}
+	| e :: el ->
+		match fst e {
+		| ENode n ->
+			List.iter (function((_,content)) check_rec chk content []) n.n_attributes;
+			List.iter (function((name,pos,params)) check_macro chk name params pos) n.n_macros;
+			match n.n_content {
+			| None -> ()
+			| Some el -> check_rec chk el []
+			}
+			check_rec chk el stack
+		| EMacroDef m ->
+			// macro declarations are not allowed in files
+			// but we use this routine as well to check macros structure
+			check_rec chk m.m_content [];
+			check_rec chk el stack
+		| EMacroCall (name,params) ->
+			check_macro chk name params snd(e);
+			check_rec chk el stack
+		| EComment _ | EData _ ->
+			check_rec chk el stack
+		| ECData content ->
+			check_rec chk content [];
+			check_rec chk el stack
+		| EConstr c ->
+			var cur = (c,snd e);
+			match c {
+			| CValue _ | CRaw _ | CSet _ ->
+				check_rec chk el stack
+			| CIf _ | CForeach _ | CFill _ | CUse _ ->
+				check_rec chk el (cur :: stack)
+			| CElseIf _ ->
+				match stack {
+				| (CIf _,_) :: stack | (CElseIf _,_) :: stack -> check_rec chk el (cur :: stack)
+				| _ -> error "Unexpected elseif" snd(e)
+				}
+			| CElse ->
+				match stack {
+				| (CIf _,_) :: stack | (CElseIf _,_) :: stack -> check_rec chk el (cur :: stack)
+				| _ ->
+					error "Unexpected else" snd(e)
+				}
+			| CEnd ->
+				match stack {
+				| [] -> error "Unexpected end" snd(e)
+				| _ :: stack -> check_rec chk el stack
+				}
+			}
+		}
+	}
+}
+
+function run(chk,el) {
+	var old = chk.macros;
+	List.iter (function(f) f.used := false) chk.macro_files;
+	check_rec chk el [];
+	chk.macros := old;
+	List.map (function(f) f.file) (List.filter (function(f) f.used) chk.macro_files);
+}
