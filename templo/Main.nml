@@ -46,12 +46,12 @@ try {
 	var macros = List.map (function(file) {
 		var el = parse file;
 		var el = Templo.Checker.add_macros chk file el;
-		var deps = Templo.Checker.run chk el;
+		var el, deps = Templo.Checker.run chk el;
 		(file,el,deps)
 	}) List.rev(*macros);
 	var files = List.map (function(file) {
 		var el = parse file;
-		var deps = Templo.Checker.run chk el;
+		var el, deps = Templo.Checker.run chk el;
 		(file,el,deps)
 	}) List.rev(*files);
 } catch {

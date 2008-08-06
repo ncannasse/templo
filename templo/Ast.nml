@@ -58,7 +58,7 @@ type constant {
 type expr_def {
 	EConst : constant;
 	EIdent : string;
-	EMacroArg : string;
+	EVar : string;
 	EIf : (expr,expr,expr option);
 	EBinop : (op,expr,expr);
 	EUnop : (unop,bool,expr);

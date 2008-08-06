@@ -117,7 +117,11 @@ function rec parse_construct(s) {
 	| [< (Ident "use",_); e = parse_expr s >] -> CUse e
 	| [< (Ident "raw",_); e = parse_expr s >] -> CRaw e
 	| [< (Ident "set",_); (Ident value,_); (Op OpAssign,_); e = parse_expr s >] -> CSet value e
-	| [< (Keyword KIf,_); e = parse_expr s >] -> CIf e
+	| [< (Keyword KIf,p1); e = parse_expr s >] ->
+		match s {
+		| [< e1 = parse_expr s; (Keyword KElse,_ ); e2 = parse_expr s >] -> CValue (EIf e e1 Some(e2), punion p1 snd(e2))
+		| [< >] -> CIf e
+		}
 	| [< (Keyword KElse,_) >] -> CElse
 	| [< (Ident "elseif",_); e = parse_expr s >] -> CElseIf e
 	| [< (Ident "foreach",_); (Ident k,_); e = parse_expr s >] -> CForeach k e
@@ -302,6 +306,8 @@ function rec parse_expr(s) {
 		}
 	| [< (Unop op,p) >] ->
 		make_unop op parse_expr(s) p
+	| [< (Op OpSub,p) >] ->
+		make_unop Neg parse_expr(s) p
 	| [< (BracketOpen,p1); el = parse_expr_list s; (BracketClose,p2) >] ->
 		parse_expr_next s (EArrayDecl el, punion p1 p2)
 	}
@@ -310,7 +316,7 @@ function rec parse_expr(s) {
 function rec parse_expr_next(s,e1) {
 	var p1 = snd e1;
 	match s {
-	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)	
+	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)
 	| [< (ParentOpen,_); args = parse_expr_list s; (ParentClose,p2) >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
 	| [< (Op op,_); e2 = parse_expr s >] -> make_binop op e1 e2
 	| [< (Unop op,p) >] -> parse_expr_next s (EUnop op false e1,p)
