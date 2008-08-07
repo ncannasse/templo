@@ -26,6 +26,7 @@ exception Error : (error_msg , pos)
 
 type mode {
 	MElement;
+	MCData;
 	MExpr;
 	MAttributes;
 	MAttrValue;
@@ -107,7 +108,21 @@ function rec parse_element(s) {
 	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c, punion p1 p2)
 	| [< (Node n,p); node = if n == "macro" then parse_macro_def s p else parse_node s n p >] -> node
 	| [< (Macro m,p1); params = parse_macro s >] -> (EMacroCall m params, p1)
+	| [< (CDataBegin,p1); c = parse_cdata s; (CDataEnd,p2) >] -> (ECData c, punion p1 p2)
 	}
+}
+
+function rec parse_cdata(s) {
+	function rec loop(s,acc) {
+		match s {		
+		| [< e = parse_element s >] -> loop s (e :: acc)
+		| [< >] -> List.rev acc
+		}
+	}
+	cur := MCData;
+	var r = loop s [];
+	cur := MElement;
+	r
 }
 
 function rec parse_construct(s) {
@@ -222,7 +237,7 @@ function rec parse_node_attribs(s,node) {
 		| [< (Ident "attr",_); (Ident attr,_); e = parse_expr s; (DoubleDot,_) >] ->
 			node.n_attrs := (attr,e) :: node.n_attrs
 		| [< (Ident "repeat",p); (Ident v,_); e = parse_expr s; (DoubleDot,_) >] ->
-			match node.n_cond {
+			match node.n_repeat {
 			| None -> node.n_repeat := Some (v,e);
 			| Some _ -> error Message("Duplicate repeat") p
 			}
@@ -342,6 +357,7 @@ function parse(lexer) {
 	function rec next_token() {
 		var t = Lexer.token lexer (match *cur {
 			| MElement -> *Templo.Lexer.element
+			| MCData -> *Templo.Lexer.cdata
 			| MExpr -> *Templo.Lexer.expr
 			| MAttributes -> *Templo.Lexer.attributes
 			| MAttrValue -> *Templo.Lexer.attrvalue

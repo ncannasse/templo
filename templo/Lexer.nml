@@ -34,6 +34,8 @@ type token {
 	DoubleDot;
 	Data : string;
 	EndNode : string;
+	CDataBegin;
+	CDataEnd;
 	// node
 	NodeContent : bool;
 	// attrib value
@@ -97,6 +99,8 @@ function s_token(t) {
 	match t {
 	| Comment s -> "<!--" + s + "-->"
 	| Node s -> "<" + s
+	| CDataBegin -> "<![CDATA["
+	| CDataEnd -> "]]>"
 	| EndNode s -> "</" + s + ">"
 	| Macro s -> "$$" + s
 	| DoubleDot -> "::"
@@ -178,6 +182,7 @@ var spaces = "[ \r\t\n]+";
 var bom = "\239\187\191";
 
 var element = &Lexer.empty();
+var cdata = &Lexer.empty();
 var attributes = &Lexer.empty();
 var attrvalue = &Lexer.empty();
 var macros = &Lexer.empty();
@@ -234,9 +239,18 @@ element := Lexer.build [
 		var str = Lexer.current l;
 		mk l EndNode(String.sub str 2 (String.length str - 3))
 	});
+	("<!\\[[Cc][dD][aA][tT][aA]\\[",function(l) mk l CDataBegin);
 	ddot;
 	("[:$]", mk_data);
 	("[^:$<>]+", mk_data);
+] invalid_char;
+
+cdata := Lexer.build [
+	macro;
+	ddot;
+	("]]>",function(l) mk l CDataEnd);
+	("[:$\\]]", mk_data);
+	("[^:$\\]]+", mk_data);
 ] invalid_char;
 
 attributes := Lexer.build [
@@ -334,7 +348,7 @@ estring := Lexer.build [
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
 	("\"" , function(l) { });
-	("[^\"\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
+	("[^\"\\\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
 ] (function(l) { assert() });
 
 eqstring := Lexer.build [
@@ -360,5 +374,5 @@ eqstring := Lexer.build [
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
 	("'" , function(l) { });
-	("[^'\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
+	("[^'\\\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
 ] (function(l) { assert() });
