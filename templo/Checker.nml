@@ -19,16 +19,30 @@ type macro_file {
 	mutable used : bool;
 }
 
+type macro_kind {
+	MKAttributes;
+	MKContent;
+	MKValue;
+}
+
+type macro_type {
+	margs : int;
+	mkind : macro_kind;
+	mfile : macro_file option;
+}
+
 type checker {
 	mutable stack : (construct, pos, string list) list;
 	mutable vars : string list;
 	mutable macro_files : macro_file list;
-	mutable macros : ((string,int), macro_file option) Map.t;
+	mutable macros : (string, macro_type) Map.t;
+	mutable in_attrib : bool;
 }
 
 exception Error : (string, pos);
 
 var r_empty = Regexp.build "^[ \t\r\n]*$";
+var r_quote = Regexp.build "\"";
 
 function is_empty(str) {
 	Regexp.find r_empty str 0 String.length(str)
@@ -44,7 +58,33 @@ function init() {
 		vars = [];
 		macro_files = [];
 		macros = Map.empty();
+		in_attrib = false;
 	}
+}
+
+function add_macro(chk,m,file) {	
+	// we don't allow nodes and double-quotes in macro content that is used for attributes values
+	function rec loop(e) {
+		match fst e {
+		| ENode _ | EComment _ | ECData _ | EMacroDef _ -> throw Exit
+		| EMacroCall (_,params) ->
+			// we can't check atm what is the content of the called macro			
+			List.iter (function(p) List.iter loop p) params
+		| EData str ->
+			if Regexp.find r_quote str 0 String.length(str) then throw Exit;
+		| EConstr _ -> ()
+		}
+	}
+	var kind = match m.m_content {
+		| MContent el -> (try { List.iter loop el; MKValue; } catch { Exit -> MKContent })
+		| MAttr _ -> MKAttributes
+	}
+	var md = {
+		margs = List.length m.m_args;
+		mkind = kind;
+		mfile = file;
+	};
+	chk.macros := Map.add chk.macros m.m_name md;
 }
 
 function add_macros(chk,file,el) {
@@ -60,7 +100,7 @@ function add_macros(chk,file,el) {
 			}
 		| EMacroDef m ->
 			macros := (EMacroDef m,snd e) :: *macros;
-			chk.macros := Map.add chk.macros (m.m_name,List.length m.m_args) Some(file);
+			add_macro chk m Some(file)
 		| EComment _ -> ()
 		| EData r when is_empty r -> ()
 		| _ -> error "This is not allowed in a macro file" snd(e)
@@ -93,20 +133,19 @@ function check_expr(chk,e) {
 	loop e
 }
 
-function rec check_macro(chk,name,params,pos) {
-	try {
-		match Map.find chk.macros (name,List.length params) {
-		| None -> ()
-		| Some f -> f.used := true
-		}
-	} catch {
-		Not_found ->
-			var nargs = &None;
-			Map.iter (function((name2,k),_) if name == name2 then nargs := Some k) chk.macros;
-			match *nargs {
-			| None -> error ("No such macro "+name) pos
-			| Some k -> error ("Macro "+name+" needs "+k+" parameters") pos
-			}
+function rec check_macro(chk,name,kind,params,pos) {
+	var m = (try Map.find chk.macros name catch { Not_found -> error ("No such macro "+name) pos });
+	if List.length params != m.margs then error ("Macro "+name+" needs "+List.length(params)+" parameters") pos;
+	match m.mfile {
+	| None -> ()
+	| Some f -> f.used := true
+	}
+	match (m.mkind,kind) {
+	| (MKAttributes, MKAttributes) -> ()
+	| (MKValue,MKContent) | (MKValue,MKValue) -> ()
+	| (MKContent,MKContent) -> ()
+	| (_,MKAttributes) -> error ("Macro "+name+" cannot be called here : please put attributes directly after macro name") pos
+	| _ -> error ("Macro "+name+" cannot be called here because the result would not be XHTML") pos
 	}
 	function rec trim(e) {
 		match e {
@@ -162,10 +201,13 @@ function rec check_rec(chk,e) {
 			add_variable chk n snd(e);
 			Some (n,e)
 		}
+		chk.in_attrib := true;
+		var attr = List.map (function((name,c)) (name,check_content chk c)) n.n_attributes;
+		chk.in_attrib := false;
 		var n2 = {
 			n_node = n.n_node;
-			n_attributes = List.map (function((name,c)) (name,check_content chk c)) n.n_attributes;
-			n_macros = List.map (function((name,pos,params)) (name,pos,check_macro chk name params pos)) n.n_macros;
+			n_attributes = attr;
+			n_macros = List.map (function((name,pos,params)) (name,pos,check_macro chk name MKAttributes params pos)) n.n_macros;
 			n_cond = match n.n_cond { None -> None | Some e -> Some (check_expr chk e) };
 			n_repeat = repeat;
 			n_attrs = List.map (function((n,e)) (n, check_expr chk e)) n.n_attrs;
@@ -174,7 +216,7 @@ function rec check_rec(chk,e) {
 		chk.vars := old;
 		ENode n2
 	| EMacroCall (name,params) ->
-		var params = check_macro chk name params snd(e);
+		var params = check_macro chk name (if chk.in_attrib then MKValue else MKContent) params snd(e);
 		EMacroCall name params
 	| EMacroDef m ->
 		var old = chk.vars;
@@ -182,7 +224,14 @@ function rec check_rec(chk,e) {
 		var m = {
 			m_name = m.m_name;
 			m_args = m.m_args;
-			m_content = check_content chk m.m_content;
+			m_content = match m.m_content {
+				| MContent el -> MContent (check_content chk el);
+				| MAttr n ->
+					match check_content chk [(ENode n,snd e)] {
+					| [(ENode n,_)] -> MAttr n
+					| _ -> assert()
+					}
+			};
 		};
 		chk.vars := old;
 		EMacroDef m

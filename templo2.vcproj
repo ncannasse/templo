@@ -46,6 +46,9 @@
 			RelativePath=".\templo\Main.nml">
 		</File>
 		<File
+			RelativePath=".\templo\Neko.nml">
+		</File>
+		<File
 			RelativePath=".\templo\Parser.nml">
 		</File>
 	</Files>

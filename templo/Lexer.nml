@@ -19,11 +19,16 @@ type keyword {
 	KElse;
 	KVar;
 	KWhile;
+	KDo;
 	KFor;
 	KBreak;
 	KContinue;
 	KFunction;
 	KReturn;
+	KTry;
+	KCatch;
+	KDefault;
+	KSwitch;
 }
 
 type token {
@@ -87,11 +92,16 @@ function s_keyword(k) {
 	| KElse -> "else"
 	| KVar -> "var"
 	| KWhile -> "while"
+	| KDo -> "do"
 	| KFor -> "for"
 	| KBreak -> "break"
 	| KContinue -> "continue"
 	| KFunction -> "function"
 	| KReturn -> "return"
+	| KTry -> "try"
+	| KCatch -> "catch"
+	| KDefault -> "default"
+	| KSwitch -> "switch"
 	}
 }
 
@@ -130,7 +140,8 @@ function dict(f,l) {
 	List.fold (function(acc,o) Map.add acc (f o) o) Map.empty() l
 }
 
-var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KFor;KBreak;KContinue;KFunction;KReturn];
+var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KDo;KFor;KBreak;KContinue;
+	KFunction;KReturn;KTry;KCatch;KDefault;KSwitch];
 
 var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
 	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod];

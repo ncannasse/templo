@@ -1,5 +1,5 @@
 /*
- *  Hss Format
+ *  Templo compiler
  *  Copyright (c)2008 Motion-Twin
  *
  *  This library is free software; you can redistribute it and/or
@@ -166,22 +166,31 @@ function rec parse_macro_def(s,p1) {
 		(name,params)
 	}
 	var content, p2 = match s {
-	| [< (NodeContent b,p2) >] -> (b, p2)
+	| [< (NodeContent b,p2) >] -> (Some b, p2)
+	| [< >] -> (None, p1)
 	}
-	cur := MElement;
-	var content = if !content then [] else {
+	var content = match content {
+	| Some b when !b ->
+		MContent []
+	| Some _ ->
+		cur := MElement;
 		var content, enode = program s [];
 		match enode {
 		| EndNode "macro" -> ()
 		| _ -> error Unclosed_node("macro") p1
 		}
-		content
+		MContent content
+	| None ->
+		match parse_node s "macro" p1 {
+		| (ENode n,_) -> MAttr n
+		| _ -> assert()
+		}
 	};
 	var m = {
 		m_name = name;
 		m_args = args;
 		m_content = content;
-	};
+	};	
 	(EMacroDef m, punion p1 p2)
 }
 

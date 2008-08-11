@@ -96,10 +96,15 @@ type node {
 	mutable n_content : content option;
 }
 
+type macro_content {
+	MContent : content;
+	MAttr : node;
+}
+
 type macro {
 	m_name : string;
 	m_args : string list;
-	m_content : content;
+	m_content : macro_content;
 }
 
 type elt_def {

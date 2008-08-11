@@ -1,5 +1,5 @@
 /*
- *  Templo Compiler
+ *  Templo compiler
  *  Copyright (c)2008 Motion-Twin
  *
  *  This library is free software; you can redistribute it and/or
@@ -13,6 +13,11 @@
  *  Lesser General Public License or the LICENSE file for more details.
  */
 open Templo.Ast;
+
+type target {
+	TNeko;
+	TPhp;
+}
 
 function report(msg,p) {
 	if p == Lexer.null_pos then	{
@@ -32,15 +37,25 @@ function parse(file) {
 	el
 }
 
+function complete_path(p) {
+	var len = String.length p;
+	if len > 0 && String.get p (len - 1) != '/' && String.get p (len - 1) != '\\' then
+		p + "/"
+	else
+		p
+}
+
 try {
 	var head = "Temploc v2.0 - (c)2008 Motion-Twin\nUsage : temploc [options] <files>";
 	var files = &[];
-	var output = &None;
+	var output = &"";
+	var target = &TNeko;
 	var chk = Templo.Checker.init();
 	var macros = &[];
 	var decl = [
-		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
+		("-output",Args.String (function(o) output := complete_path o),"<dir> : specify output directory");
 		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
+		("-php",Args.Void (function() target := TPhp),": use php output");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	var macros = List.map (function(file) {
@@ -54,6 +69,11 @@ try {
 		var el, deps = Templo.Checker.run chk el;
 		(file,el,deps)
 	}) List.rev(*files);
+	var datas = List.append macros files;
+	match *target {
+	| TNeko -> Templo.Neko.generate (*output) datas
+	| TPhp -> assert()
+	}
 } catch {
 	| Templo.Lexer.Error(msg,pos) -> report Templo.Lexer.error_msg(msg) pos
 	| Templo.Parser.Error(msg,pos) -> report Templo.Parser.error_msg(msg) pos
