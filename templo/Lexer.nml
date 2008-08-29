@@ -107,7 +107,7 @@ function s_keyword(k) {
 
 function s_token(t) {
 	match t {
-	| Comment s -> "<!--" + s + "-->"
+	| Comment s -> s
 	| Node s -> "<" + s
 	| CDataBegin -> "<![CDATA["
 	| CDataEnd -> "]]>"
@@ -239,7 +239,9 @@ element := Lexer.build [
 		var p1 = Lexer.curpos l;
 		var buf = Lexer.data l;
 		Buffer.reset buf;
+		Buffer.add buf "<!--";
 		try comment l catch { Exit -> throw Error(Unclosed_comment,p1) };
+		Buffer.add buf "-->";
 		var p2 = Lexer.curpos l;
 		(Comment(Buffer.string buf) , Lexer.punion p1 p2)
 	});

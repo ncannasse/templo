@@ -14,11 +14,6 @@
  */
 open Templo.Ast;
 
-type target {
-	TNeko;
-	TPhp;
-}
-
 function report(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -49,13 +44,15 @@ try {
 	var head = "Temploc v2.0 - (c)2008 Motion-Twin\nUsage : temploc [options] <files>";
 	var files = &[];
 	var output = &"";
-	var target = &TNeko;
+	var target = &Templo.Neko.generate;
+	var debug = &false;
 	var chk = Templo.Checker.init();
 	var macros = &[];
 	var decl = [
 		("-output",Args.String (function(o) output := complete_path o),"<dir> : specify output directory");
 		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
-		("-php",Args.Void (function() target := TPhp),": use php output");
+		("-php",Args.Void (function() assert()),": use php output");
+		("-debug",Args.Void (function() debug := true),": use debug mode");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	var macros = List.map (function(file) {
@@ -70,10 +67,7 @@ try {
 		(file,el,deps)
 	}) List.rev(*files);
 	var datas = List.append macros files;
-	match *target {
-	| TNeko -> Templo.Neko.generate (*output) datas
-	| TPhp -> assert()
-	}
+	(*target) (*output) (*debug) datas;
 } catch {
 	| Templo.Lexer.Error(msg,pos) -> report Templo.Lexer.error_msg(msg) pos
 	| Templo.Parser.Error(msg,pos) -> report Templo.Parser.error_msg(msg) pos

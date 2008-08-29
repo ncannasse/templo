@@ -12,31 +12,304 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *  Lesser General Public License or the LICENSE file for more details.
  */
+open Lexer;
 open Templo.Ast;
+open Neko.Ast;
 
-function ast_element(e) {
-	assert()	
+function ident(x,p) {
+	(EConst Ident(x),p)
 }
 
-function ast_content(acc,el) {
+function call(i,p,pl) {
+	(ECall (EConst Ident(i),p) pl,p)
+}
+
+function print_expr(e) {
+	var p = snd e;
+	call "__add" p [ident "__buf" p;e]
+}
+
+function print_escaped(e) {	
+	var p = snd e;
+	print_expr (call "__escape" p [e])
+}
+
+function print(s,p) {
+	print_expr (EConst (String s),p)
+}
+
+function context(v,p) {
+	(EField ident("__context",p) v, p)
+}
+
+function macro_name(name,p) {
+	ident ("__m__" + name) p
+}
+
+function str(s,p) {
+	(EConst String(s),p)
+}
+
+function block(l) {
+	match l {
+	| [] -> (EBlock [], Lexer.null_pos)
+	| [x] -> x
+	| l -> (EBlock l, snd (List.hd l))
+	}
+}
+
+function is_true(e) {
+	var p = snd e;
+	(ECall (EConst Builtin("istrue"),p) [e], p)
+}
+
+function make_string(e) {
+	var p = snd e;
+	(ECall (EField ident("__string",p) "new",p) [e],p)
+}
+
+function rec make_bool(e) {	
+	match fst e {
+	| VBinop (op,e1,e2) ->
+		match op {
+		| OpEq | OpNotEq | OpGt | OpGte | OpLt | OpLte -> ast_expr(e)
+		| OpBoolAnd | OpBoolOr -> (EBinop s_op(op) make_bool(e1) make_bool(e2),snd e)
+		| _ -> is_true ast_expr(e)
+		}
+	| VParent p -> (EParenthesis make_bool(p),snd e)
+	| _ -> is_true ast_expr(e)
+	}
+}
+
+function rec ast_expr(e) {	
+	var p = snd e;
+	(match fst e {	
+	| VConst c -> 
+		match c { 
+		| CInt i -> EConst Int(i) 
+		| CFloat f -> EConst Float(f)
+		| CString s -> fst (make_string (EConst String(s),p))
+		}
+	| VIdent "true" -> EConst True
+	| VIdent "false" -> EConst False
+	| VIdent "null" -> EConst Null
+	| VIdent i -> EField ident("__context",p) i
+	| VVar v -> EConst (Ident v)
+	| VIf (e1,e2,e3) -> EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> None | Some e -> Some (ast_expr e) })
+	| VBinop (op,e1,e2) -> EBinop s_op(op) ast_expr(e1) ast_expr(e2)
+	| VUnop (op,pref,e) ->		
+		match op {
+		| Increment -> EBinop (if pref then "+=" else "++=") ast_expr(e) (EConst Int(1),p)
+		| Decrement -> EBinop (if pref then "-=" else "--=") ast_expr(e) (EConst Int(1),p)
+		| Not -> ECall (EConst Builtin("not"), p) [ast_expr(e)]
+		| Neg -> EBinop "-" (EConst Int(0),p) ast_expr(e)
+		}
+	| VCall (e,el) -> ECall ast_expr(e) (List.map ast_expr el)
+	| VParent e -> EParenthesis ast_expr(e)
+	| VField ((VIdent "repeat",_),k) -> EConst Ident("repeat__" + k)
+	| VField (e,v) -> EField ast_expr(e) v
+	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
+	| VArrayDecl el ->		
+		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
+		ECall (EField ident("__array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
+	},p)
+}
+
+function rec make_attr(p,(attr,cl)) {
+	pad_content (print (" " + attr + "=\"") p) cl (print "\"" p)
+}
+
+function rec ast_element(e) {
+	var p = snd e;
+	match fst e {
+	| XNode n ->
+		// TODO : n_repeat
+		var nbegin = print ("<"+n.n_node) p;
+		var attributes = List.map make_attr(p) n.n_attributes;
+		var macros = List.map (function((m,_,cl)) {
+			[]
+		}) n.n_macros;
+		var attrs = List.map (function((attr,e)) {
+			[]
+		}) n.n_attrs;
+		var content, nend = match n.n_content {
+			| None -> ([], print "/>" p)
+			| Some cl ->
+				var cl, _, _ = ast_content [] cl;
+				(print ">" p :: List.rev cl, print ("</"+n.n_node+">") p)
+		};
+		block (List.concat [
+			[nbegin];
+			List.concat attributes;
+			List.concat macros;
+			List.concat attrs;			
+			content;
+			[nend];
+		]);
+	| XMacroCall (name,params) ->
+		(ECall (macro_name name p) (List.map ast_block params),p)
+	| XMacroDef m ->
+		var ef = match m.m_content {
+			| MContent c -> ast_block c
+			| MAttr a -> block List.concat(List.map make_attr(p) a)
+		};
+		var emacro = (EFunction m.m_args ef,p);
+		(EBinop "=" (macro_name m.m_name p) emacro,p)
+	| XComment c ->
+		print c p
+	| XData d ->
+		print d p
+	| XCData content ->
+		block (pad_content (print "<![CDATA[" p) content (print "]]>" p))
+	| XConstr _ -> 
+		assert()
+	}
+}
+
+function rec ast_block(el) {
+	var el, _, _ = ast_content [] el;
+	block List.rev(el)
+}
+
+function rec pad_content(a,el,b) {
+	var el, _, _ = ast_content [] el;
+	a :: List.rev (b :: el)
+}
+
+function rec ast_content(acc,el) {
 	match el {
-	| [] -> (List.rev acc,[])
-	| e :: el ->
+	| [] -> (acc,None,[])
+	| e :: el ->		
 		match fst e {
-		| EConstr c -> 
+		| XConstr c -> 
+			var p = snd e;
 			match c {
-			| CEnd -> (List.rev acc,el)
+			| CValue e ->				
+				ast_content (print_escaped ast_expr(e) :: acc) el
+			| CRaw e -> 				
+				ast_content (print_expr ast_expr(e) :: acc) el
+			| CIf e ->
+				var cif, celse, el = ast_content [] el;
+				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
+				ast_content (eif :: acc) el
+			| CElseIf e ->
+				var cif, celse, el = ast_content [] el;
+				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
+				(acc, Some eif, el)
+			| CElse ->
+				var cif, _, el = ast_content [] el;
+				(acc, Some block(List.rev cif), el)
+			| CForeach (v,e) ->
+				var content, _, el = ast_content [] el;
+				var vname = "repeat__" + v;
+				var cfor = block [
+					(EVars [(vname,Some (call "__iter" p [ast_expr(e)]))],p);
+					call "__loop" p [
+						ident vname p;
+						(EFunction [v;"__buf";"__context"] block(List.rev content),p);
+						ident "__buf" p;
+						ident "__context" p;
+					];
+				];
+				ast_content (cfor :: acc) el
+			| CFill v ->
+				var content, _, el = ast_content [] el;
+				var init_buf = (EVars [("__buf",Some (call "__open" p []))],p);
+				var string = make_string (call "__close" p [ident "__buf" p]);
+				var set_var = (EBinop "=" (EField ident("__context",p) v,p) string,p);
+				var cfill = block (init_buf :: List.rev (set_var :: content));
+				ast_content (cfill :: acc) el
+			| CUse file ->
+				var content, _, el = ast_content [] el;
+				var cuse = block [];
+				ast_content (cuse :: acc) el
+			| CSet (v,e) ->
+				var eset = (EBinop "=" context(v,p) ast_expr(e),p);
+				ast_content (eset :: acc) el
+			| CEnd ->
+				(acc,None,el)
 			}
-		| _ -> ast_content (ast_element e :: acc) el
+		| _ ->
+			ast_content (ast_element e :: acc) el
 		}
 	}
 }
 
-function generate(output,files) {
-	List.iter (function((file,content,deps)) {
-		var ast, _ = ast_content [] content;
+function generate_file(output,debug,(file,content,macros)) {
+	var p = { 
+		psource = file; 
+		pline = 0; pmin = 0; pmax = 0;
+	};
+	// boot-sequence
+	var boot = Neko.Parser.parse_string "
+		var api = $loader.__templo;
+		__open = api.open;
+		__close = api.close;
+		__add = api.add;
+		__split = api.split;
+		__string = api.String;
+		__array = api.Array;
+		__iter = api.iter;
+		__loop = api.loop;
+		__replace = function( h, n, r ){
+			var l = __split(h, n);
+			if( l[1] == null )
+				return h;
+			var b = __open();
+			__add(b, l[0]);
+			l = l[1];
+			while (l != null){
+				__add(b, r);
+				__add(b, l[0]);
+				l = l[1];
+			}
+			return __close(b);
+		}
+		__escape = function( data ) {
+			var t = $typeof(data);
+			if( t == $tint )
+				return data;
+			if( t == $tobject ) {
+				var s = data.__s;
+				if( $typeof(s) == $tstring )
+					data = s;
+				else
+					data  = $string(data);
+			} else
+				data = $string(data);
+			if( data == \"\" )
+				return data;
+			data = __replace(data, \"&\", \"&amp;\");
+			data = __replace(data, \"<\", \"&lt;\");
+			data = __replace(data, \">\", \"&gt;\");
+			data = __replace(data, \"\\\"\", \"&quot;\");
+			return data;
+		}
+	" ({ psource = "<boot>"; pline = 1; pmin = 0; pmax = 0; });
+	// end-boot-sequence
+	var ast, _ , _ = ast_content [] content;
+	var ast = List.rev ast;
+	var program = (block [
+		boot;
+		(EBinop "="
+			(EField (EConst Builtin("exports"),p) "execute",p)
+			(EFunction ["__buf";"__context"] (block ast),p)
+		,p);
+	]);
+	if debug then {
 		var fout = output + Sys.without_extension file + ".neko";
-		print fout;
-		print "\n";
-	}) files;
+		var ch = IO.write_file fout true;
+		var pr = Neko.Printer.create(ch);
+		Neko.Printer.print pr program;
+		IO.close_out ch;
+	}
+	var fout = output + file + ".n";
+	var code = Neko.Compile.compile program;
+	var ch = IO.write_file fout true;
+	Neko.Bytecode.write ch code;
+	IO.close_out ch;
+}
+
+function generate(output,debug,files) {
+	List.iter generate_file(output,debug) files
 }

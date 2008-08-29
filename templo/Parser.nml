@@ -62,18 +62,18 @@ function can_swap(_op,op) {
 
 function rec make_binop(op,e,e2) {
 	match fst e2 {
-	| EBinop (_op,_e,_e2) when can_swap _op op ->
+	| VBinop (_op,_e,_e2) when can_swap _op op ->
 		var _e = make_binop op e _e;
-		(EBinop _op _e _e2, punion snd(_e) snd(_e2))
+		(VBinop _op _e _e2, punion snd(_e) snd(_e2))
 	| _ ->
-		(EBinop op e e2, punion snd(e) snd(e2))
+		(VBinop op e e2, punion snd(e) snd(e2))
 	}
 }
 
 function rec make_unop(op,e,p1) {
 	match e {
-	| (EBinop (bop,e,e2),p2) -> (EBinop bop (make_unop op e p1) e2, punion p1 p2)
-	| (_,p2) -> (EUnop op true e, punion p1 p2)
+	| (VBinop (bop,e,e2),p2) -> (VBinop bop (make_unop op e p1) e2, punion p1 p2)
+	| (_,p2) -> (VUnop op true e, punion p1 p2)
 	}
 }
 
@@ -103,12 +103,12 @@ function rec program(s,acc) {
 
 function rec parse_element(s) {
 	match s {
-	| [< (Data str,p) >] -> (EData str, p)
-	| [< (Comment n,p) >] -> (EComment n, p)
-	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c, punion p1 p2)
+	| [< (Data str,p) >] -> (XData str, p)
+	| [< (Comment n,p) >] -> (XComment n, p)
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (XConstr c, punion p1 p2)
 	| [< (Node n,p); node = if n == "macro" then parse_macro_def s p else parse_node s n p >] -> node
-	| [< (Macro m,p1); params = parse_macro s >] -> (EMacroCall m params, p1)
-	| [< (CDataBegin,p1); c = parse_cdata s; (CDataEnd,p2) >] -> (ECData c, punion p1 p2)
+	| [< (Macro m,p1); params = parse_macro s >] -> (XMacroCall m params, p1)
+	| [< (CDataBegin,p1); c = parse_cdata s; (CDataEnd,p2) >] -> (XCData c, punion p1 p2)
 	}
 }
 
@@ -134,7 +134,7 @@ function rec parse_construct(s) {
 	| [< (Ident "set",_); (Ident value,_); (Op OpAssign,_); e = parse_expr s >] -> CSet value e
 	| [< (Keyword KIf,p1); e = parse_expr s >] ->
 		match s {
-		| [< e1 = parse_expr s; (Keyword KElse,_ ); e2 = parse_expr s >] -> CValue (EIf e e1 Some(e2), punion p1 snd(e2))
+		| [< e1 = parse_expr s; (Keyword KElse,_ ); e2 = parse_expr s >] -> CValue (VIf e e1 Some(e2), punion p1 snd(e2))
 		| [< >] -> CIf e
 		}
 	| [< (Keyword KElse,_) >] -> CElse
@@ -182,7 +182,11 @@ function rec parse_macro_def(s,p1) {
 		MContent content
 	| None ->
 		match parse_node s "macro" p1 {
-		| (ENode n,_) -> MAttr n
+		| (XNode n,p) -> 
+			if n.n_content != None then error Message("Attribute macro can't have content") p;
+			if n.n_attrs != [] || n.n_macros != [] || n.n_repeat != None || n.n_cond != None then 
+				error Message("Attribute macro can't have special attributes") p;
+			MAttr n.n_attributes
 		| _ -> assert()
 		}
 	};
@@ -191,7 +195,7 @@ function rec parse_macro_def(s,p1) {
 		m_args = args;
 		m_content = content;
 	};	
-	(EMacroDef m, punion p1 p2)
+	(XMacroDef m, punion p1 p2)
 }
 
 function rec parse_macro_args(s) {
@@ -229,7 +233,7 @@ function rec parse_node(s,n,p1) {
 		}
 		n.n_content := Some content;
 	}
-	(ENode n, punion p1 p2)
+	(XNode n, punion p1 p2)
 }
 
 function rec parse_node_attribs(s,node) {
@@ -269,10 +273,10 @@ function rec parse_node_attribs(s,node) {
 
 function rec parse_attrib_value(s,b) {
 	match s {
-	| [< (Data str,p) >] -> (EData str,p) :: parse_attrib_value s b
-	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (EConstr c,punion p1 p2) :: parse_attrib_value s b
-	| [< (Macro m,p1); params = parse_macro s >] -> (EMacroCall m params, p1) :: parse_attrib_value s b
-	| [< (Quote b2,p) >] -> if b == b2 then [] else (EData (s_token Quote(b2)),p) :: parse_attrib_value s b
+	| [< (Data str,p) >] -> (XData str,p) :: parse_attrib_value s b
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> (XConstr c,punion p1 p2) :: parse_attrib_value s b
+	| [< (Macro m,p1); params = parse_macro s >] -> (XMacroCall m params, p1) :: parse_attrib_value s b
+	| [< (Quote b2,p) >] -> if b == b2 then [] else (XData (s_token Quote(b2)),p) :: parse_attrib_value s b
 	}
 }
 
@@ -295,56 +299,56 @@ function rec parse_macro_params(s,acc,n,pacc) {
 			if n == 0 then
 				parse_macro_params s (List.rev(vl) :: acc) 0 []
 			else
-				parse_macro_params s acc n ((EData ",",p) :: vl)
+				parse_macro_params s acc n ((XData ",",p) :: vl)
 		| [< (ParentClose,p) >] ->
 			if n == 0 then
 				List.rev (List.rev(vl) :: acc)
 			else
-				parse_macro_params s acc n ((EData ")",p) :: vl)
+				parse_macro_params s acc n ((XData ")",p) :: vl)
 		}
 	}
 }
 
 function rec parse_macro_param(s,n,acc) {
 	match s {
-	| [< (BraceOpen,p) >] -> parse_macro_param s (n + 1) ((EData "{",p) :: acc)
-	| [< (BraceClose,p) >] -> if n == 0 then throw Stream_error; parse_macro_param s (n - 1) ((EData "}",p) :: acc)
-	| [< (ParentOpen,p) >] -> parse_macro_param s n ((EData "(",p) :: acc)
-	| [< (Data d,p) >] -> parse_macro_param s n ((EData d,p) :: acc)
-	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> parse_macro_param s n ((EConstr c,punion p1 p2) :: acc)
+	| [< (BraceOpen,p) >] -> parse_macro_param s (n + 1) ((XData "{",p) :: acc)
+	| [< (BraceClose,p) >] -> if n == 0 then throw Stream_error; parse_macro_param s (n - 1) ((XData "}",p) :: acc)
+	| [< (ParentOpen,p) >] -> parse_macro_param s n ((XData "(",p) :: acc)
+	| [< (Data d,p) >] -> parse_macro_param s n ((XData d,p) :: acc)
+	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> parse_macro_param s n ((XConstr c,punion p1 p2) :: acc)
 	| [< >] -> (acc,n)
 	}
 }
 
 function rec parse_expr(s) {
 	match s {
-	| [< (Int i,p) >] -> parse_expr_next s (EConst (CInt i),p)
-	| [< (Float f,p) >] -> parse_expr_next s (EConst (CFloat f),p)
-	| [< (String str,p) >] -> parse_expr_next s (EConst (CString str),p)
-	| [< (Ident id,p) >] -> parse_expr_next s (EIdent id,p)
-	| [< (ParentOpen,p1); e = parse_expr s; (ParentClose,p2) >] -> parse_expr_next s (EParent e,punion p1 p2)
+	| [< (Int i,p) >] -> parse_expr_next s (VConst (CInt i),p)
+	| [< (Float f,p) >] -> parse_expr_next s (VConst (CFloat f),p)
+	| [< (String str,p) >] -> parse_expr_next s (VConst (CString str),p)
+	| [< (Ident id,p) >] -> parse_expr_next s (VIdent id,p)
+	| [< (ParentOpen,p1); e = parse_expr s; (ParentClose,p2) >] -> parse_expr_next s (VParent e,punion p1 p2)
 	| [< (Keyword KIf,p1); cond = parse_expr s; e1 = parse_expr s >] ->
 		match s {
-		| [< (Keyword KElse,_); e2 = parse_expr s >] -> (EIf cond e1 Some(e2), punion p1 snd(e2))
-		| [< >] -> (EIf cond e1 None, punion p1 snd(e1))
+		| [< (Keyword KElse,_); e2 = parse_expr s >] -> (VIf cond e1 Some(e2), punion p1 snd(e2))
+		| [< >] -> (VIf cond e1 None, punion p1 snd(e1))
 		}
 	| [< (Unop op,p) >] ->
 		make_unop op parse_expr(s) p
 	| [< (Op OpSub,p) >] ->
 		make_unop Neg parse_expr(s) p
 	| [< (BracketOpen,p1); el = parse_expr_list s; (BracketClose,p2) >] ->
-		parse_expr_next s (EArrayDecl el, punion p1 p2)
+		parse_expr_next s (VArrayDecl el, punion p1 p2)
 	}
 }
 
 function rec parse_expr_next(s,e1) {
 	var p1 = snd e1;
 	match s {
-	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (EField e1 f,punion p1 p2)
-	| [< (ParentOpen,_); args = parse_expr_list s; (ParentClose,p2) >] -> parse_expr_next s (ECall e1 args,punion p1 p2)
+	| [< (Dot,_); (Ident f,p2) >] -> parse_expr_next s (VField e1 f,punion p1 p2)
+	| [< (ParentOpen,_); args = parse_expr_list s; (ParentClose,p2) >] -> parse_expr_next s (VCall e1 args,punion p1 p2)
 	| [< (Op op,_); e2 = parse_expr s >] -> make_binop op e1 e2
-	| [< (Unop op,p) >] -> parse_expr_next s (EUnop op false e1,p)
-	| [< (BracketOpen,_); e2 = parse_expr s; (BracketClose,p2) >] -> parse_expr_next s (EArray e1 e2, punion snd(e1) p2)
+	| [< (Unop op,p) >] -> parse_expr_next s (VUnop op false e1,p)
+	| [< (BracketOpen,_); e2 = parse_expr s; (BracketClose,p2) >] -> parse_expr_next s (VArray e1 e2, punion snd(e1) p2)
 	| [< >] -> e1
 	}
 }

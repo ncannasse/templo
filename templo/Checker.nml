@@ -66,13 +66,13 @@ function add_macro(chk,m,file) {
 	// we don't allow nodes and double-quotes in macro content that is used for attributes values
 	function rec loop(e) {
 		match fst e {
-		| ENode _ | EComment _ | ECData _ | EMacroDef _ -> throw Exit
-		| EMacroCall (_,params) ->
+		| XNode _ | XComment _ | XCData _ | XMacroDef _ -> throw Exit
+		| XMacroCall (_,params) ->
 			// we can't check atm what is the content of the called macro			
 			List.iter (function(p) List.iter loop p) params
-		| EData str ->
+		| XData str ->
 			if Regexp.find r_quote str 0 String.length(str) then throw Exit;
-		| EConstr _ -> ()
+		| XConstr _ -> ()
 		}
 	}
 	var kind = match m.m_content {
@@ -93,16 +93,16 @@ function add_macros(chk,file,el) {
 	var macros = &[];
 	function rec loop(e) {
 		match fst e {
-		| ENode n when n.n_node == "macros" ->
+		| XNode n when n.n_node == "macros" ->
 			match n.n_content {
 			| None -> ()
 			| Some c -> List.iter loop c
 			}
-		| EMacroDef m ->
-			macros := (EMacroDef m,snd e) :: *macros;
+		| XMacroDef m ->
+			macros := (XMacroDef m,snd e) :: *macros;
 			add_macro chk m Some(file)
-		| EComment _ -> ()
-		| EData r when is_empty r -> ()
+		| XComment _ -> ()
+		| XData r when is_empty r -> ()
 		| _ -> error "This is not allowed in a macro file" snd(e)
 		}
 	}
@@ -118,16 +118,16 @@ function add_variable(chk,v,p) {
 function check_expr(chk,e) {
 	function rec loop(e) {
 		(match fst e {
-		| EIdent i when List.mem i chk.vars -> EVar i
-		| EIf (e,e1,e2) -> EIf loop(e) loop(e1) (match e2 { None -> None | Some e -> Some (loop e) })
-		| EBinop (op,e1,e2) -> EBinop op loop(e1) loop(e2)
-		| EUnop (op,prefix,e) -> EUnop op prefix loop(e)
-		| ECall (e,el) -> ECall loop(e) (List.map loop el)
-		| EParent e -> EParent loop(e)
-		| EField (e,f) -> EField loop(e) f
-		| EArray (e1,e2) -> EArray loop(e1) loop(e2)
-		| EArrayDecl el -> EArrayDecl (List.map loop el)
-		| EConst _ | EIdent _ | EVar _ -> fst e
+		| VIdent i when List.mem i chk.vars -> VVar i
+		| VIf (e,e1,e2) -> VIf loop(e) loop(e1) (match e2 { None -> None | Some e -> Some (loop e) })
+		| VBinop (op,e1,e2) -> VBinop op loop(e1) loop(e2)
+		| VUnop (op,prefix,e) -> VUnop op prefix loop(e)
+		| VCall (e,el) -> VCall loop(e) (List.map loop el)
+		| VParent e -> VParent loop(e)
+		| VField (e,f) -> VField loop(e) f
+		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
+		| VArrayDecl el -> VArrayDecl (List.map loop el)
+		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}
 	loop e
@@ -149,7 +149,7 @@ function rec check_macro(chk,name,kind,params,pos) {
 	}
 	function rec trim(e) {
 		match e {
-		| (EData r,_) :: e when is_empty r -> trim e
+		| (XData r,_) :: e when is_empty r -> trim e
 		| _ -> e
 		}
 	}
@@ -160,9 +160,9 @@ function rec check_macro(chk,name,kind,params,pos) {
 		var elr = trim (List.rev el);
 		// remove {...} if surrounding parameter
 		match el {
-		| (EData "{",_) :: _ ->
+		| (XData "{",_) :: _ ->
 			match elr {
-			| (EData "}",_) :: elr -> List.tl (List.rev elr)
+			| (XData "}",_) :: elr -> List.tl (List.rev elr)
 			| _ -> List.rev elr
 			}
 		| _ -> List.rev elr
@@ -192,7 +192,7 @@ function rec check_content(chk,el) {
 
 function rec check_rec(chk,e) {
 	(match fst e {
-	| ENode n ->
+	| XNode n ->
 		var old = chk.vars;
 		var repeat = match n.n_repeat {
 		| None -> None
@@ -214,11 +214,11 @@ function rec check_rec(chk,e) {
 			n_content = match n.n_content { None -> None | Some c -> Some (check_content chk c) };
 		}
 		chk.vars := old;
-		ENode n2
-	| EMacroCall (name,params) ->
+		XNode n2
+	| XMacroCall (name,params) ->
 		var params = check_macro chk name (if chk.in_attrib then MKValue else MKContent) params snd(e);
-		EMacroCall name params
-	| EMacroDef m ->
+		XMacroCall name params
+	| XMacroDef m ->
 		var old = chk.vars;
 		List.iter (function(v) add_variable chk v snd(e)) m.m_args;
 		var m = {
@@ -226,21 +226,21 @@ function rec check_rec(chk,e) {
 			m_args = m.m_args;
 			m_content = match m.m_content {
 				| MContent el -> MContent (check_content chk el);
-				| MAttr n ->
-					match check_content chk [(ENode n,snd e)] {
-					| [(ENode n,_)] -> MAttr n
-					| _ -> assert()
-					}
+				| MAttr al -> 
+					chk.in_attrib := true;
+					var attr = List.map (function((name,c)) (name,check_content chk c)) al;
+					chk.in_attrib := false;
+					MAttr attr
 			};
 		};
 		chk.vars := old;
-		EMacroDef m
-	| EComment _
-	| EData _ ->
+		XMacroDef m
+	| XComment _
+	| XData _ ->
 		fst e
-	| ECData el ->
-		ECData (check_content chk el)
-	| EConstr c ->
+	| XCData el ->
+		XCData (check_content chk el)
+	| XConstr c ->
 		var cur = (c,snd e,chk.vars);
 		var c = match c {
 		| CValue e ->
@@ -286,7 +286,7 @@ function rec check_rec(chk,e) {
 			}
 			CEnd
 		}
-		EConstr c
+		XConstr c
 	}, snd e)
 }
 

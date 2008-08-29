@@ -56,17 +56,17 @@ type constant {
 }
 
 type expr_def {
-	EConst : constant;
-	EIdent : string;
-	EVar : string;
-	EIf : (expr,expr,expr option);
-	EBinop : (op,expr,expr);
-	EUnop : (unop,bool,expr);
-	ECall : (expr,expr list);
-	EParent : expr;
-	EField : (expr,string);
-	EArray : (expr,expr);
-	EArrayDecl : expr list;
+	VConst : constant;
+	VIdent : string;
+	VVar : string;
+	VIf : (expr,expr,expr option);
+	VBinop : (op,expr,expr);
+	VUnop : (unop,bool,expr);
+	VCall : (expr,expr list);
+	VParent : expr;
+	VField : (expr,string);
+	VArray : (expr,expr);
+	VArrayDecl : expr list;
 }
 
 type expr = (expr_def,pos)
@@ -98,7 +98,7 @@ type node {
 
 type macro_content {
 	MContent : content;
-	MAttr : node;
+	MAttr : (string, content) list;
 }
 
 type macro {
@@ -108,13 +108,13 @@ type macro {
 }
 
 type elt_def {
-	ENode : node;
-	EMacroCall : (string, content list);
-	EMacroDef : macro;
-	EComment : string;
-	EData : string;
-	ECData : content;
-	EConstr : construct;
+	XNode : node;
+	XMacroCall : (string, content list);
+	XMacroDef : macro;
+	XComment : string;
+	XData : string;
+	XCData : content;
+	XConstr : construct;
 }
 
 type elt = (elt_def,pos)
