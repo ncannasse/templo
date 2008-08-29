@@ -1,7 +1,7 @@
 ﻿<haxe selected="0">
-  <output name="Run" mode="neko" out="run.n" class="Run" lib="" cmd="run.bat" main="True" debug="False"></output>
+  <output name="Run" mode="neko" out="run.n" class="Run" lib="" cmd="run.bat" main="True" debug="False">-cp ..</output>
   <files path="">
-    <file path="..\..\..\Prog\lang\haxe\std\mtwin\templo2\Loader.hx" />
+    <file path="..\templo\Loader.hx" />
     <file path="macros.mtt" />
     <file path="macros.neko" />
     <file path="Run.hx" />
