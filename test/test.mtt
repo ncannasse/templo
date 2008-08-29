@@ -1,1 +1,3 @@
-<a ::attr ok 'ok'::/>
+<a $$onclick(/)>
+$$foo( 555 , ::[4,5]::,xxxejk)
+</a>

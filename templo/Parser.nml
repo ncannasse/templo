@@ -114,7 +114,7 @@ function rec parse_element(s) {
 
 function rec parse_cdata(s) {
 	function rec loop(s,acc) {
-		match s {		
+		match s {
 		| [< e = parse_element s >] -> loop s (e :: acc)
 		| [< >] -> List.rev acc
 		}
@@ -182,9 +182,9 @@ function rec parse_macro_def(s,p1) {
 		MContent content
 	| None ->
 		match parse_node s "macro" p1 {
-		| (XNode n,p) -> 
+		| (XNode n,p) ->
 			if n.n_content != None then error Message("Attribute macro can't have content") p;
-			if n.n_attrs != [] || n.n_macros != [] || n.n_repeat != None || n.n_cond != None then 
+			if n.n_attrs != [] || n.n_macros != [] || n.n_repeat != None || n.n_cond != None then
 				error Message("Attribute macro can't have special attributes") p;
 			MAttr n.n_attributes
 		| _ -> assert()
@@ -194,7 +194,7 @@ function rec parse_macro_def(s,p1) {
 		m_name = name;
 		m_args = args;
 		m_content = content;
-	};	
+	};
 	(XMacroDef m, punion p1 p2)
 }
 

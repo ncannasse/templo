@@ -1,0 +1,9 @@
+<macros>
+
+	<macro name="foo(x,y,z)">
+		<a href="::x::">::y::</a>::z::
+	</macro>
+
+	<macro name="onclick(url)" onclick="::url::"/>
+
+</macros>

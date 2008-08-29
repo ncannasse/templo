@@ -43,6 +43,7 @@ exception Error : (string, pos);
 
 var r_empty = Regexp.build "^[ \t\r\n]*$";
 var r_quote = Regexp.build "\"";
+var r_integer = Regexp.build "^[ \t\r\n]*([0-9]+)[ \t\r\n]*$";
 
 function is_empty(str) {
 	Regexp.find r_empty str 0 String.length(str)
@@ -62,13 +63,13 @@ function init() {
 	}
 }
 
-function add_macro(chk,m,file) {	
+function add_macro(chk,m,file) {
 	// we don't allow nodes and double-quotes in macro content that is used for attributes values
 	function rec loop(e) {
 		match fst e {
 		| XNode _ | XComment _ | XCData _ | XMacroDef _ -> throw Exit
 		| XMacroCall (_,params) ->
-			// we can't check atm what is the content of the called macro			
+			// we can't check atm what is the content of the called macro
 			List.iter (function(p) List.iter loop p) params
 		| XData str ->
 			if Regexp.find r_quote str 0 String.length(str) then throw Exit;
@@ -135,7 +136,7 @@ function check_expr(chk,e) {
 
 function rec check_macro(chk,name,kind,params,pos) {
 	var m = (try Map.find chk.macros name catch { Not_found -> error ("No such macro "+name) pos });
-	if List.length params != m.margs then error ("Macro "+name+" needs "+List.length(params)+" parameters") pos;
+	if List.length params != m.margs then error ("Macro "+name+" needs "+m.margs+" parameters") pos;
 	match m.mfile {
 	| None -> ()
 	| Some f -> f.used := true
@@ -165,6 +166,13 @@ function rec check_macro(chk,name,kind,params,pos) {
 			| (XData "}",_) :: elr -> List.tl (List.rev elr)
 			| _ -> List.rev elr
 			}
+		| [(XData str,p)] ->
+			var e = if Regexp.find r_integer str 0 String.length(str) then {
+				var iv = int Regexp.matched(r_integer,1);
+				VConst CInt(iv);
+			} else
+				VConst CString(str);
+			[(XConstr CValue((e,p)),p)]
 		| _ -> List.rev elr
 		}
 	}) params
@@ -226,7 +234,7 @@ function rec check_rec(chk,e) {
 			m_args = m.m_args;
 			m_content = match m.m_content {
 				| MContent el -> MContent (check_content chk el);
-				| MAttr al -> 
+				| MAttr al ->
 					chk.in_attrib := true;
 					var attr = List.map (function((name,c)) (name,check_content chk c)) al;
 					chk.in_attrib := false;
