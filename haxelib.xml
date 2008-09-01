@@ -1,0 +1,5 @@
+<project name="templo" url="http://code.google.com/p/temploc" license="LGPL">
+    <user name="ncannasse"/>
+    <description>Advanced Template System for haXe</description>
+    <version name="2.0">Temploc2 is ready, no longer part of mtwin libraries</version>
+</project>

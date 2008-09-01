@@ -97,10 +97,13 @@ function rec ast_expr(e) {
 		| CFloat f -> EConst Float(f)
 		| CString s -> fst (make_string (EConst String(s),p))
 		}
-	| VIdent "true" -> EConst True
-	| VIdent "false" -> EConst False
-	| VIdent "null" -> EConst Null
-	| VIdent i -> EField ident("@context",p) i
+	| VIdent i ->
+		match i {
+		| "true" -> EConst True
+		| "false" -> EConst False
+		| "null" -> EConst Null
+		| i -> EField ident("@context",p) i
+		}
 	| VVar v -> EConst (Ident v)
 	| VIf (e1,e2,e3) -> EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> None | Some e -> Some (ast_expr e) })
 	| VBinop (op,e1,e2) -> EBinop s_op(op) ast_expr(e1) ast_expr(e2)
@@ -161,9 +164,13 @@ function rec ast_element(e) {
 			content;
 			[nend];
 		];
-		match n.n_repeat {
+		var e = match n.n_repeat {
 		| None -> block content
 		| Some (v,e) -> build_repeat v e content p
+		}
+		match n.n_cond {
+		| None -> e
+		| Some cond -> (EIf make_bool(cond) e None,p)
 		}
 	| XMacroCall (name,params) ->
 		function make_content(cl) {

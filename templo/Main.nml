@@ -23,8 +23,14 @@ function report(msg,p) {
 	Sys.exit(-1);
 }
 
-function parse(file) {
-	var ch = IO.read_file file true;
+function rec open_file(paths,file) {
+	match paths {
+	| [] -> error ("File not found " + file)
+	| d :: paths -> try IO.read_file (d+file) true catch { _ -> open_file paths file }
+	}
+}
+
+function parse(file,ch) {
 	var lex = Lexer.create Buffer.create();
 	Lexer.input lex file ch 1 0;
 	var el = Templo.Parser.parse lex;
@@ -43,12 +49,14 @@ function complete_path(p) {
 try {
 	var head = "Temploc v2.0 - (c)2008 Motion-Twin\nUsage : temploc [options] <files>";
 	var files = &[];
+	var paths = &[""];
 	var output = &"";
 	var target = &Templo.Neko.generate;
 	var debug = &false;
 	var chk = Templo.Checker.init();
 	var macros = &[];
 	var decl = [
+		("-cp",Args.String (function(p) paths := p :: *paths),"<dir> : add file search path");
 		("-output",Args.String (function(o) output := complete_path o),"<dir> : specify output directory");
 		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
 		("-php",Args.Void (function() assert()),": use php output");
@@ -56,13 +64,13 @@ try {
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	var macros = List.map (function(file) {
-		var el = parse file;
+		var el = parse file open_file(*paths,file);
 		var el = Templo.Checker.add_macros chk file el;
 		var el, deps = Templo.Checker.run chk el;
 		(file,el,deps)
 	}) List.rev(*macros);
 	var files = List.map (function(file) {
-		var el = parse file;
+		var el = parse file open_file(*paths,file);
 		var el, deps = Templo.Checker.run chk el;
 		(file,el,deps)
 	}) List.rev(*files);
@@ -72,6 +80,9 @@ try {
 	| Templo.Lexer.Error(msg,pos) -> report Templo.Lexer.error_msg(msg) pos
 	| Templo.Parser.Error(msg,pos) -> report Templo.Parser.error_msg(msg) pos
 	| Templo.Checker.Error(msg,pos) -> report msg pos
+	| Error msg ->
+		IO.printf IO.stderr "%s\n" msg;
+		Sys.exit(-1)
 	| e ->
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" string(e);

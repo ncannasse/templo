@@ -86,14 +86,16 @@ class Loader {
 		var args = new Array();
 		if( MACROS != null ) {
 			args.push("-macros");
-			args.push(BASE_DIR+MACROS);
+			args.push(MACROS);
 		}
 		if( DEBUG )
 			args.push("-debug");
+		args.push("-cp");
+		args.push(BASE_DIR);
 		args.push("-output");
 		args.push(TMP_DIR);
 		args.push(path);
-		var p = new neko.io.Process("../temploc",args);
+		var p = new neko.io.Process("temploc2",args);
 		if( p.exitCode() != 0 )
 			throw "Temploc compilation of "+path+" failed : "+p.stderr.readAll();
 	}
@@ -174,9 +176,11 @@ class Loader {
 		use : function( file : String, buf : Buffer, ctx : Dynamic, content : Buffer -> Dynamic -> Void ) {
 			var tmp = buffer_new();
 			content(tmp,ctx);
+			var old = ctx.__content__;
 			ctx.__content__ = neko.NativeString.toString( buffer_string(tmp) );
 			tmp = null;
 			new Loader(file).run(buf,ctx);
+			ctx.__content__ = old;
 		},
 		macros : function( file : String, m : Dynamic ) {
 			new Loader(file).macros(m);
