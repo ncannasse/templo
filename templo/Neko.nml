@@ -307,6 +307,42 @@ function rec ast_content(acc,el) {
 	}
 }
 
+function rec optimize_adds(acc,el) {
+	match el {
+	| [] -> acc
+	| (ECall ((EConst Ident("@add"),p),[(EConst Ident("@buf"),_);(EConst String(s1),_)]),_) :: 
+	  (ECall ((EConst Ident("@add"),_),[(EConst Ident("@buf"),_);(EConst String(s2),_)]),_) :: el ->
+		var e = (ECall (EConst Ident("@add"),p) [(EConst Ident("@buf"),p);(EConst String(s2+s1),p)],p);		
+		optimize_adds acc (e :: el)
+	| e :: el ->
+		optimize_adds (e :: acc) el
+	}
+}
+
+function rec optimize(e) {
+	match fst e {
+	| EBlock el ->
+		var el = List.fold (function(acc,e) {
+			match optimize e {
+			| (EBlock l,_) when List.none (function(e) { match fst e { EVars _ -> true | _ -> false }}) l ->
+				List.append List.rev(l) acc
+			| e ->
+				e :: acc
+			}
+		}) [] el;
+		
+		(EBlock optimize_adds([],el),snd e)
+	| EIf (e1,e2,e3) ->
+		(EIf optimize(e1) optimize(e2) (match e3 { None -> None | Some e -> Some optimize(e) }),snd e)
+	| EFunction (params,c) ->
+		(EFunction params optimize(c),snd e)
+	| ECall (v,pl) ->
+		(ECall optimize(v) (List.map optimize pl),snd e)
+	| _ ->
+		e
+	}
+}
+
 function generate_file(output,debug,(file,content,imports)) {
 	var p = {
 		psource = file;
@@ -363,8 +399,8 @@ function generate_file(output,debug,(file,content,imports)) {
 	// end-boot-sequence
 	macros := [];
 	var ast, _ , _ = ast_content [] content;
-	var ast = List.rev ast;
-	var macros = List.rev (*macros);
+	var ast = optimize (block (List.rev ast));
+	var macros = List.map optimize (List.rev (*macros));
 	var program = block [
 		boot;
 		(EBinop "="
@@ -377,7 +413,7 @@ function generate_file(output,debug,(file,content,imports)) {
 		}) imports);
 		(EBinop "="
 			(EField (EConst Builtin("exports"),p) "execute",p)
-			(EFunction ["@buf";"@context"] (block ast),p)
+			(EFunction ["@buf";"@context"] ast,p)
 		,p);
 	];
 	function escape(sep,str) {
