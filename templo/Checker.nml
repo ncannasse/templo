@@ -45,6 +45,15 @@ var r_empty = Regexp.build "^[ \t\r\n]*$";
 var r_quote = Regexp.build "\"";
 var r_integer = Regexp.build "^[ \t\r\n]*([0-9]+)[ \t\r\n]*$";
 
+var xhtml_attributes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [
+	"compact";"nowrap";"ismap";"declare";"noshade";"checked";"disabled";
+	"readonly";"multiple";"selected";"noresize";"defer"
+];
+
+var xhtml_empty_nodes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [
+	"area";"base";"basefont";"br";"col";"frame";"hr";"img";"input";"isindex";"link";"meta";"param"
+];
+
 function is_empty(str) {
 	Regexp.find r_empty str 0 String.length(str)
 }
@@ -159,21 +168,38 @@ function rec check_macro(chk,name,kind,params,pos) {
 		// trim spaces around macro params
 		var el = trim el;
 		var elr = trim (List.rev el);
+		function raw(e) {
+			match fst e {
+			| XNode _ | XCData _ | XComment _ | XMacroDef _ -> assert()
+			| XMacroCall _ | XData _ -> e
+			| XConstr c ->
+				match c {
+				| CValue v -> (XConstr (CRaw v),snd e)
+				| _ -> e
+				}
+			}
+		}
 		// remove {...} if surrounding parameter
-		match el {
+		var el = match el {
 		| (XData "{",_) :: _ ->
 			match elr {
 			| (XData "}",_) :: elr -> List.tl (List.rev elr)
 			| _ -> List.rev elr
 			}
+		| _ ->
+			List.rev elr
+		}
+		// don't escape macro arguments, they will be escaped if printed
+		match el {
 		| [(XData str,p)] ->
 			var e = if Regexp.find r_integer str 0 String.length(str) then {
 				var iv = int Regexp.matched(r_integer,1);
 				VConst CInt(iv);
 			} else
 				VConst CString(str);
-			[(XConstr CValue((e,p)),p)]
-		| _ -> List.rev elr
+			[(XConstr CRaw((e,p)),p)]
+		| el ->
+			List.map raw el
 		}
 	}) params
 }
@@ -219,7 +245,20 @@ function rec check_rec(chk,e) {
 			n_cond = match n.n_cond { None -> None | Some e -> Some (check_expr chk e) };
 			n_repeat = repeat;
 			n_attrs = List.map (function((n,e)) (n, check_expr chk e)) n.n_attrs;
-			n_content = match n.n_content { None -> None | Some c -> Some (check_content chk c) };
+			n_content = match n.n_content {
+				| None ->
+					if Map.exists xhtml_empty_nodes n.n_node then
+						None
+					else {
+						// make a small exception for <div class="clear"/>
+						if n.n_node == "div" then
+							Some [(XData "",snd(e))]
+						else
+							error ("The " + n.n_node + " content can't be empty in XHTML") snd(e)
+					}
+				| Some c ->
+					Some (check_content chk c)
+			};
 		}
 		chk.vars := old;
 		XNode n2

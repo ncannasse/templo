@@ -18,11 +18,6 @@ open Neko.Ast;
 
 var macros = &[]
 
-var xhtml_attributes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [
-	"compact";"nowrap";"ismap";"declare";"noshade";"checked";"disabled";
-	"readonly";"multiple";"selected";"noresize";"defer"
-];
-
 function ident(x,p) {
 	(EConst Ident(x),p)
 }
@@ -143,7 +138,7 @@ function rec ast_element(e) {
 			ast_element (XMacroCall m cl,p)
 		}) n.n_macros;
 		var attrs = List.map (function((attr,e)) {
-			if Map.exists xhtml_attributes attr then
+			if Map.exists Templo.Checker.xhtml_attributes attr then
 				(EIf make_bool(e) print(" "+attr+"=\""+attr+"\"",p) None,p)
 			else {
 				var etmp = ident "@tmp" p;
@@ -179,7 +174,7 @@ function rec ast_element(e) {
 	| XMacroCall (name,params) ->
 		function make_content(cl) {
 			match cl {
-			| [(XConstr CValue(e),_)] -> ast_expr e
+			| [(XConstr CRaw(e),_)] -> ast_expr e
 			| _ ->
 				block [
 					(EVars [("@buf",Some (call "@open" p []))],p);
@@ -297,7 +292,7 @@ function rec ast_content(acc,el) {
 					ast_expr(file);
 					ident "@buf" p;
 					ident "@context" p;
-					(EFunction ["@buf";"@context"] block(content),p);
+					(EFunction ["@buf";"@context"] block(List.rev content),p);
 				];
 				ast_content (cuse :: acc) el
 			| CSet (v,e) ->
