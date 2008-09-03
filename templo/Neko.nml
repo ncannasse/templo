@@ -117,8 +117,12 @@ function rec ast_expr(e) {
 	| VCall (e,el) -> ECall ast_expr(e) (List.map ast_expr el)
 	| VParent e -> EParenthesis ast_expr(e)
 	| VField ((VIdent "repeat",_),k) -> EConst Ident("repeat@" + k)
-	| VField (e,v) -> EField ast_expr(e) v
-	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
+	| VField (e,v) -> 
+		if String.get v 0 == '_' then
+			ECall (EField ast_expr(e) ("get"+v),p) []
+		else
+			EField ast_expr(e) v
+ 	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
 	| VArrayDecl el ->
 		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
 		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
@@ -381,6 +385,10 @@ function generate_file(output,debug,(file,content,imports)) {
 			(EFunction ["@buf";"@context"] (block ast),p)
 		,p);
 	];
+	function escape(sep,str) {
+		String.concat "__" (String.split str sep)
+	}
+	var file = escape "\\" (escape "/" file);
 	if debug then {
 		var fout = output + Sys.without_extension file + ".neko";
 		var ch = IO.write_file fout true;
