@@ -187,6 +187,19 @@ function rec check_macro(chk,name,kind,params,pos) {
 			| _ -> List.rev elr
 			}
 		| _ ->
+			function check_parent(e) {
+				match fst e {
+				| XData s -> 
+					try {
+						ignore(String.find s 0 "(");
+						error "Macro parameter containing ( must be enclosed with {...}" snd(e);
+					} catch {
+						Not_found -> ()
+					}
+				| _ -> ()
+				}
+			}
+			List.iter check_parent elr;
 			List.rev elr
 		}
 		// don't escape macro arguments, they will be escaped if printed
