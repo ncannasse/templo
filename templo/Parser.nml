@@ -316,6 +316,7 @@ function rec parse_macro_param(s,n,acc) {
 	| [< (ParentOpen,p) >] -> parse_macro_param s n ((XData "(",p) :: acc)
 	| [< (Data d,p) >] -> parse_macro_param s n ((XData d,p) :: acc)
 	| [< (DoubleDot,p1); c, p2 = parse_construct s >] -> parse_macro_param s n ((XConstr c,punion p1 p2) :: acc)
+	| [< (Macro m,p1); params = parse_macro s >] -> parse_macro_param s n ((XMacroCall m params, p1) :: acc)
 	| [< >] -> (acc,n)
 	}
 }
