@@ -1,4 +1,4 @@
-# Run
--neko run.n
--main Run
+# Test
+-neko test.n
+-main Test
 -cp ..

@@ -51,6 +51,9 @@
 		<File
 			RelativePath=".\templo\Parser.nml">
 		</File>
+		<File
+			RelativePath=".\templo\Php.nml">
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

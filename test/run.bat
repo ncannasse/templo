@@ -1,3 +1,3 @@
 @echo off
-neko run
+neko test
 pause

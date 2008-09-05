@@ -1,4 +1,4 @@
-class Run {
+class Test {
 
 	static function main() {
 		templo.Loader.DEBUG = true;
