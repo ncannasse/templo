@@ -4,5 +4,7 @@ mkdir release
 mkdir release\templo
 cp ../templo/*.* release/templo
 cp ../temploc2.n ../haxelib.xml release
+haxe -main Run -neko run.n
+cp run.n release
 zip -q -r release.zip release
 rm -rf release
