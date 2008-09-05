@@ -195,13 +195,12 @@ function rec check_macro(chk,name,kind,params,pos) {
 		var elr = trim (List.rev el) r_empty_right;
 		function raw(e) {
 			match fst e {
-			| XNode _ | XCData _ | XComment _ | XMacroDef _ -> assert()
-			| XMacroCall _ | XData _ -> e
 			| XConstr c ->
 				match c {
 				| CValue v -> (XConstr (CRaw v),snd e)
 				| _ -> e
 				}
+			| _ -> e
 			}
 		}
 		// remove {...} if surrounding parameter

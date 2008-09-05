@@ -296,7 +296,11 @@ macros := Lexer.build [
 	macro;
 	ddot;
 	("[:$]", mk_data);
-	("[^:$,(){}]+", mk_data);
+	("[^:$,(){}<]+", mk_data);
+	("<"+attr, function(l) {
+		var str = Lexer.current l;
+		mk l Node(String.sub str 1 (String.length str - 1))
+	});
 ] invalid_char;
 
 ecomment := Lexer.build [
