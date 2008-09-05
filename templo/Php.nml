@@ -119,6 +119,8 @@ function rec ast_expr(e) {
 	| VArrayDecl el ->
 		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
 		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
+	| VBool e ->
+		assert()
 	},p)
 }
 

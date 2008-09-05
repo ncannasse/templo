@@ -60,27 +60,9 @@ function block(l) {
 	}
 }
 
-function is_true(e) {
-	var p = snd e;
-	(ECall (EConst Builtin("istrue"),p) [e], p)
-}
-
 function make_string(e) {
 	var p = snd e;
 	(ECall (EField ident("@string",p) "new",p) [e],p)
-}
-
-function rec make_bool(e) {
-	match fst e {
-	| VBinop (op,e1,e2) ->
-		match op {
-		| OpEq | OpNotEq | OpGt | OpGte | OpLt | OpLte -> ast_expr(e)
-		| OpBoolAnd | OpBoolOr -> (EBinop s_op(op) make_bool(e1) make_bool(e2),snd e)
-		| _ -> is_true ast_expr(e)
-		}
-	| VParent p -> (EParenthesis make_bool(p),snd e)
-	| _ -> is_true ast_expr(e)
-	}
 }
 
 function rec ast_expr(e) {
@@ -99,9 +81,12 @@ function rec ast_expr(e) {
 		| "null" -> EConst Null
 		| i -> EField ident("@context",p) i
 		}
-	| VVar v -> EConst (Ident v)
-	| VIf (e1,e2,e3) -> EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> None | Some e -> Some (ast_expr e) })
-	| VBinop (op,e1,e2) -> EBinop s_op(op) ast_expr(e1) ast_expr(e2)
+	| VVar v ->
+		EConst (Ident v)
+	| VIf (e1,e2,e3) ->
+		EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> Some (EConst False,p) | Some e -> Some (ast_expr e) })
+	| VBinop (op,e1,e2) ->
+		EBinop s_op(op) ast_expr(e1) ast_expr(e2)
 	| VUnop (op,pref,e) ->
 		match op {
 		| Increment -> EBinop (if pref then "+=" else "++=") ast_expr(e) (EConst Int(1),p)
@@ -109,18 +94,24 @@ function rec ast_expr(e) {
 		| Not -> ECall (EConst Builtin("not"), p) [ast_expr(e)]
 		| Neg -> EBinop "-" (EConst Int(0),p) ast_expr(e)
 		}
-	| VCall (e,el) -> ECall ast_expr(e) (List.map ast_expr el)
-	| VParent e -> EParenthesis ast_expr(e)
-	| VField ((VIdent "repeat",_),k) -> EConst Ident("repeat@" + k)
-	| VField (e,v) -> 
+	| VCall (e,el) ->
+		ECall ast_expr(e) (List.map ast_expr el)
+	| VParent e ->
+		EParenthesis ast_expr(e)
+	| VField ((VIdent "repeat",_),k) ->
+		EConst Ident("repeat@" + k)
+	| VField (e,v) ->
 		if String.get v 0 == '_' then
 			ECall (EField ast_expr(e) ("get"+v),p) []
 		else
 			EField ast_expr(e) v
- 	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
+ 	| VArray (e1,e2) ->
+		EArray ast_expr(e1) ast_expr(e2)
 	| VArrayDecl el ->
 		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
 		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
+	| VBool e ->
+		ECall (EConst Builtin("istrue"),p) [ast_expr(e)]
 	},p)
 }
 
@@ -138,16 +129,12 @@ function rec ast_element(e) {
 			ast_element (XMacroCall m cl,p)
 		}) n.n_macros;
 		var attrs = List.map (function((attr,e)) {
-			if Map.exists Templo.Checker.xhtml_attributes attr then
-				(EIf make_bool(e) print(" "+attr+"=\""+attr+"\"",p) None,p)
-			else {
-				var etmp = ident "@tmp" p;
-				var prr = [print (" " + attr + "=\"") p; print_escaped etmp; print "\"" p];
-				block [
-					(EVars [("@tmp",Some ast_expr(e))],p);
-					(EIf is_true(etmp) block(prr) None,p)
-				]
-			}
+			var etmp = ident "@tmp" p;
+			var prr = [print (" " + attr + "=\"") p; print_escaped etmp; print "\"" p];
+			block [
+				(EVars [("@tmp",Some ast_expr(e))],p);
+				(EIf (ECall (EConst Builtin("istrue"),p) [etmp],p) block(prr) None,p)
+			]
 		}) n.n_attrs;
 		var content, nend = match n.n_content {
 			| None -> ([], print "/>" p)
@@ -169,7 +156,7 @@ function rec ast_element(e) {
 		}
 		match n.n_cond {
 		| None -> e
-		| Some cond -> (EIf make_bool(cond) e None,p)
+		| Some cond -> (EIf ast_expr(cond) e None,p)
 		}
 	| XMacroCall (name,params) ->
 		function make_content(cl) {
@@ -251,11 +238,11 @@ function rec ast_content(acc,el) {
 				ast_content (print_expr ast_expr(e) :: acc) el
 			| CIf e ->
 				var cif, celse, el = ast_content [] el;
-				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
+				var eif = (EIf ast_expr(e) block(List.rev cif) celse, p);
 				ast_content (eif :: acc) el
 			| CElseIf e ->
 				var cif, celse, el = ast_content [] el;
-				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
+				var eif = (EIf ast_expr(e) block(List.rev cif) celse, p);
 				(acc, Some eif, el)
 			| CElse ->
 				var cif, _, el = ast_content [] el;
@@ -310,9 +297,9 @@ function rec ast_content(acc,el) {
 function rec optimize_adds(acc,el) {
 	match el {
 	| [] -> acc
-	| (ECall ((EConst Ident("@add"),p),[(EConst Ident("@buf"),_);(EConst String(s1),_)]),_) :: 
+	| (ECall ((EConst Ident("@add"),p),[(EConst Ident("@buf"),_);(EConst String(s1),_)]),_) ::
 	  (ECall ((EConst Ident("@add"),_),[(EConst Ident("@buf"),_);(EConst String(s2),_)]),_) :: el ->
-		var e = (ECall (EConst Ident("@add"),p) [(EConst Ident("@buf"),p);(EConst String(s2+s1),p)],p);		
+		var e = (ECall (EConst Ident("@add"),p) [(EConst Ident("@buf"),p);(EConst String(s2+s1),p)],p);
 		optimize_adds acc (e :: el)
 	| e :: el ->
 		optimize_adds (e :: acc) el
@@ -330,7 +317,6 @@ function rec optimize(e) {
 				e :: acc
 			}
 		}) [] el;
-		
 		(EBlock optimize_adds([],el),snd e)
 	| EIf (e1,e2,e3) ->
 		(EIf optimize(e1) optimize(e2) (match e3 { None -> None | Some e -> Some optimize(e) }),snd e)

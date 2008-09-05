@@ -53,6 +53,7 @@ try {
 	var output = &"";
 	var target = &Templo.Neko.generate;
 	var debug = &false;
+	var xml = &false;
 	var chk = Templo.Checker.init();
 	var macros = &[];
 	var decl = [
@@ -61,17 +62,21 @@ try {
 		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
 		("-php",Args.Void (function() target := Templo.Php.generate),": use php output");
 		("-debug",Args.Void (function() debug := true),": use debug mode");
+		("-xml",Args.Void (function() xml := true),": don't use XHTML checks");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
+	function is_xml(file) {
+		*xml || String.lowercase (Sys.extension file) == "xml"
+	}
 	var macros = List.map (function(file) {
 		var el = parse file open_file(*paths,file);
 		var el = Templo.Checker.add_macros chk file el;
-		var el, deps = Templo.Checker.run chk el;
+		var el, deps = Templo.Checker.run chk is_xml(file) el;
 		(file,el,deps)
 	}) List.rev(*macros);
 	var files = List.map (function(file) {
 		var el = parse file open_file(*paths,file);
-		var el, deps = Templo.Checker.run chk el;
+		var el, deps = Templo.Checker.run chk is_xml(file) el;
 		(file,el,deps)
 	}) List.rev(*files);
 	var datas = List.append macros files;

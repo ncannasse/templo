@@ -32,6 +32,7 @@ type macro_type {
 }
 
 type checker {
+	mutable xml : bool;
 	mutable stack : (construct, pos, string list) list;
 	mutable vars : string list;
 	mutable macro_files : macro_file list;
@@ -42,6 +43,8 @@ type checker {
 exception Error : (string, pos);
 
 var r_empty = Regexp.build "^[ \t\r\n]*$";
+var r_empty_left = Regexp.build "^[ \t\r\n]+(.*)";
+var r_empty_right = Regexp.build "(.*?)[ \t\r\n]+$";
 var r_quote = Regexp.build "\"";
 var r_integer = Regexp.build "^[ \t\r\n]*([0-9]+)[ \t\r\n]*$";
 
@@ -64,6 +67,7 @@ function error(msg,pos) {
 
 function init() {
 	{
+		xml = true;
 		stack = [];
 		vars = [];
 		macro_files = [];
@@ -137,10 +141,25 @@ function check_expr(chk,e) {
 		| VField (e,f) -> VField loop(e) f
 		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
+		| VBool e -> VBool loop(e)
 		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}
 	loop e
+}
+
+function rec make_bool(chk,e) {
+	match fst e {
+	| VBinop (op,e1,e2) ->
+		match op {
+		| OpEq | OpNotEq | OpGt | OpGte | OpLt | OpLte -> check_expr chk e
+		| OpBoolAnd | OpBoolOr -> (VBinop op make_bool(chk,e1) make_bool(chk,e2),snd e)
+		| _ -> (VBool check_expr(chk,e),snd e)
+		}
+	| VParent p -> (VParent make_bool(chk,p),snd e)
+	| VBool e2 -> (VBool check_expr(chk,e2),snd e)
+	| _ -> (VBool check_expr(chk,e),snd e)
+	}
 }
 
 function rec check_macro(chk,name,kind,params,pos) {
@@ -157,17 +176,23 @@ function rec check_macro(chk,name,kind,params,pos) {
 	| (_,MKAttributes) -> error ("Macro "+name+" cannot be called here : please put attributes directly after macro name") pos
 	| _ -> error ("Macro "+name+" cannot be called here because the result would not be XHTML") pos
 	}
-	function rec trim(e) {
+	function rec trim(e,r) {
 		match e {
-		| (XData r,_) :: e when is_empty r -> trim e
+		| (XData str,p) :: el ->
+			if is_empty str then
+				trim el r
+			else if Regexp.find r str 0 String.length(str) then
+				(XData Regexp.matched(r,1), p) :: el
+			else
+				e
 		| _ -> e
 		}
 	}
 	List.map (function(el) {
 		var el = check_content chk el;
 		// trim spaces around macro params
-		var el = trim el;
-		var elr = trim (List.rev el);
+		var el = trim el r_empty_left;
+		var elr = trim (List.rev el) r_empty_right;
 		function raw(e) {
 			match fst e {
 			| XNode _ | XCData _ | XComment _ | XMacroDef _ -> assert()
@@ -189,7 +214,7 @@ function rec check_macro(chk,name,kind,params,pos) {
 		| _ ->
 			function check_parent(e) {
 				match fst e {
-				| XData s -> 
+				| XData s ->
 					try {
 						ignore(String.find s 0 "(");
 						error "Macro parameter containing ( must be enclosed with {...}" snd(e);
@@ -255,12 +280,24 @@ function rec check_rec(chk,e) {
 			n_node = n.n_node;
 			n_attributes = attr;
 			n_macros = List.map (function((name,pos,params)) (name,pos,check_macro chk name MKAttributes params pos)) n.n_macros;
-			n_cond = match n.n_cond { None -> None | Some e -> Some (check_expr chk e) };
+			n_cond = match n.n_cond { None -> None | Some e -> Some (make_bool chk e) };
 			n_repeat = repeat;
-			n_attrs = List.map (function((n,e)) (n, check_expr chk e)) n.n_attrs;
+			n_attrs = List.map (function((n,e)) {
+				var e = check_expr chk e;
+				var e = if !chk.xml && Map.exists xhtml_attributes n then
+					match fst e {
+					| VIf _ -> e
+					| _ ->
+						var p = snd e;
+						(VIf (VBool e,p) (VConst CString(n),p) None,p)
+					}
+				else
+					e;
+				(n, e)
+			}) n.n_attrs;
 			n_content = match n.n_content {
 				| None ->
-					if Map.exists xhtml_empty_nodes n.n_node then
+					if chk.xml || Map.exists xhtml_empty_nodes n.n_node then
 						None
 					else {
 						// make a small exception for <div class="clear"/>
@@ -312,7 +349,7 @@ function rec check_rec(chk,e) {
 			CSet v (check_expr chk ex)
 		| CIf e ->
 			chk.stack := cur :: chk.stack;
-			CIf (check_expr chk e)
+			CIf (make_bool chk e)
 		| CElse ->
 			match chk.stack {
 			| (CIf _,_,_) :: stack | (CElseIf _,_,_) :: stack -> chk.stack := cur :: stack;
@@ -324,7 +361,7 @@ function rec check_rec(chk,e) {
 			| (CIf _,_,_) :: stack | (CElseIf _,_,_) :: stack -> chk.stack := cur :: stack;
 			| _ -> error "Unexpected elseif" snd(e)
 			}
-			CElseIf (check_expr chk ex)
+			CElseIf (make_bool chk ex)
 		| CForeach (k,ex) ->
 			chk.stack := cur :: chk.stack;
 			var ex = check_expr chk ex;
@@ -350,8 +387,9 @@ function rec check_rec(chk,e) {
 	}, snd e)
 }
 
-function run(chk,el) {
+function run(chk,xml,el) {
 	var old = chk.macros;
+	chk.xml := xml;
 	List.iter (function(f) f.used := false) chk.macro_files;
 	var el = check_content chk el;
 	chk.macros := old;
