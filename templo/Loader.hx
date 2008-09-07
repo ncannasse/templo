@@ -49,17 +49,24 @@ class Loader {
 
 	var run : Buffer -> Dynamic -> String;
 	var macros : Dynamic -> Void;
+	var cache : Bool;
 
-	public function new( file:String ) {
+	public function new( file:String, ?cache : Bool ) {
 		if( !OPTIMIZED )
 			compileTemplate(file);
+		this.cache = cache;
 		loadTemplate(tmpFileId(file));
 	}
 
 	public function execute( ctx : Dynamic ) {
 		var buf = buffer_new();
 		var cache = saveCache();
-		run(buf,ctx);
+		try {
+			run(buf,ctx);
+		} catch( e : Dynamic ) {
+			restoreCache(cache);
+			neko.Lib.rethrow(e);
+		}
 		restoreCache(cache);
 		return neko.NativeString.toString(buffer_string(buf));
 	}
@@ -104,11 +111,11 @@ class Loader {
 		var loader : Dynamic = untyped __dollar__loader;
 		loader.__templo = API;
 		var cache = saveCache();
-		var exports : Dynamic;
+		var exports : Dynamic = null;
 		try {
 			exports = loader.loadmodule(neko.NativeString.ofString(nPath), loader);
 		} catch( e : Dynamic ) {
-			restoreCache(cache)
+			restoreCache(cache);
 			neko.Lib.rethrow(e);
 		}
 		restoreCache(cache);
@@ -117,11 +124,13 @@ class Loader {
 	}
 
 	function saveCache() : Dynamic {
+		if( !cache ) return null;
 		return untyped __dollar__new(__dollar__loader.cache);
 	}
 
 	function restoreCache( c : Dynamic ) {
-		untyped __dollar__loader.cache = c;
+		if( cache )
+			untyped __dollar__loader.cache = c;
 	}
 
 	static var buffer_new : Dynamic = neko.Lib.load("std","buffer_new",0);
@@ -185,11 +194,11 @@ class Loader {
 			var old = ctx.__content__;
 			ctx.__content__ = neko.NativeString.toString( buffer_string(tmp) );
 			tmp = null;
-			new Loader(file).run(buf,ctx);
+			new Loader(file,true).run(buf,ctx);
 			ctx.__content__ = old;
 		},
 		macros : function( file : String, m : Dynamic ) {
-			new Loader(file).macros(m);
+			new Loader(file,true).macros(m);
 		}
 	};
 
