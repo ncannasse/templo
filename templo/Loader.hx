@@ -104,7 +104,13 @@ class Loader {
 		var loader : Dynamic = untyped __dollar__loader;
 		loader.__templo = API;
 		var cache = saveCache();
-		var exports : Dynamic = loader.loadmodule(neko.NativeString.ofString(nPath), loader);
+		var exports : Dynamic;
+		try {
+			exports = loader.loadmodule(neko.NativeString.ofString(nPath), loader);
+		} catch( e : Dynamic ) {
+			restoreCache(cache)
+			neko.Lib.rethrow(e);
+		}
 		restoreCache(cache);
 		run = exports.execute;
 		macros = exports.macros;
