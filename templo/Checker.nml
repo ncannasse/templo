@@ -50,7 +50,7 @@ var r_integer = Regexp.build "^[ \t\r\n]*([0-9]+)[ \t\r\n]*$";
 
 var xhtml_attributes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [
 	"compact";"nowrap";"ismap";"declare";"noshade";"checked";"disabled";
-	"readonly";"multiple";"selected";"noresize";"defer"
+	"readonly";"multiple";"selected";"nohref";"noresize";"defer"
 ];
 
 var xhtml_empty_nodes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [

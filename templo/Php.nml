@@ -1,3 +1,5 @@
+// TODO: all parameter list must be divided by a comma (search for List.iter
+
 /*
  *  Templo compiler
  *  Copyright (c)2008 Motion-Twin
@@ -16,303 +18,63 @@ open Lexer;
 open Templo.Ast;
 open Neko.Ast;
 
-var macros = &[]
-
-var xhtml_attributes = List.fold (function(acc,l) Map.add acc l ()) Map.empty() [
-	"compact";"nowrap";"ismap";"declare";"noshade";"checked";"disabled";
-	"readonly";"multiple";"selected";"nohref";"noresize";"defer"
-];
-
-function ident(x,p) {
-	(EConst Ident(x),p)
-}
-
-function call(i,p,pl) {
-	(ECall (EConst Ident(i),p) pl,p)
-}
-
-function print_expr(e) {
-	var p = snd e;
-	call "@add" p [ident "@buf" p;e]
-}
-
-function print_escaped(e) {
-	var p = snd e;
-	print_expr (call "@escape" p [e])
-}
-
-function print_neko(s,p) {
-	print_expr (EConst (String s),p)
-}
-
-function context(v,p) {
-	(EField ident("@context",p) v, p)
-}
-
-function macro_name(name,p) {
-	(EField ident("@m",p) name,p)
-}
-
-function str(s,p) {
-	(EConst String(s),p)
-}
-
-function block(l) {
-	match l {
-	| [] -> (EBlock [], Lexer.null_pos)
-	| [x] -> x
-	| l -> (EBlock l, snd (List.hd l))
-	}
-}
-
-function is_true(e) {
-	var p = snd e;
-	(ECall (EConst Builtin("istrue"),p) [e], p)
-}
-
-function make_string(e) {
-	var p = snd e;
-	(ECall (EField ident("@string",p) "new",p) [e],p)
-}
-
-function rec make_bool(e) {
-	match fst e {
-	| VBinop (op,e1,e2) ->
-		match op {
-		| OpEq | OpNotEq | OpGt | OpGte | OpLt | OpLte -> ast_expr(e)
-		| OpBoolAnd | OpBoolOr -> (EBinop s_op(op) make_bool(e1) make_bool(e2),snd e)
-		| _ -> is_true ast_expr(e)
-		}
-	| VParent p -> (EParenthesis make_bool(p),snd e)
-	| _ -> is_true ast_expr(e)
-	}
-}
-
-function rec ast_expr(e) {
-	var p = snd e;
-	(match fst e {
-	| VConst c ->
-		match c {
-		| CInt i -> EConst Int(i)
-		| CFloat f -> EConst Float(f)
-		| CString s -> fst (make_string (EConst String(s),p))
-		}
-	| VIdent "true" -> EConst True
-	| VIdent "false" -> EConst False
-	| VIdent "null" -> EConst Null
-	| VIdent i -> EField ident("@context",p) i
-	| VVar v -> EConst (Ident v)
-	| VIf (e1,e2,e3) -> EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> None | Some e -> Some (ast_expr e) })
-	| VBinop (op,e1,e2) -> EBinop s_op(op) ast_expr(e1) ast_expr(e2)
-	| VUnop (op,pref,e) ->
-		match op {
-		| Increment -> EBinop (if pref then "+=" else "++=") ast_expr(e) (EConst Int(1),p)
-		| Decrement -> EBinop (if pref then "-=" else "--=") ast_expr(e) (EConst Int(1),p)
-		| Not -> ECall (EConst Builtin("not"), p) [ast_expr(e)]
-		| Neg -> EBinop "-" (EConst Int(0),p) ast_expr(e)
-		}
-	| VCall (e,el) -> ECall ast_expr(e) (List.map ast_expr el)
-	| VParent e -> EParenthesis ast_expr(e)
-	| VField ((VIdent "repeat",_),k) -> EConst Ident("repeat@" + k)
-	| VField (e,v) -> EField ast_expr(e) v
-	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
-	| VArrayDecl el ->
-		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
-		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
-	| VBool e ->
-		assert()
-	},p)
-}
-
-function rec make_attr(p,(attr,cl)) {
-	pad_content (print_neko (" " + attr + "=\"") p) cl (print_neko "\"" p)
-}
-
-function rec ast_element(e) {
-	var p = snd e;
-	match fst e {
-	| XNode n ->
-		var nbegin = print_neko ("<"+n.n_node) p;
-		var attributes = List.map make_attr(p) n.n_attributes;
-		var macros = List.map (function((m,_,cl)) {
-			ast_element (XMacroCall m cl,p)
-		}) n.n_macros;
-		var attrs = List.map (function((attr,e)) {
-			if Map.exists xhtml_attributes attr then
-				(EIf make_bool(e) print_neko(" "+attr+"=\""+attr+"\"",p) None,p)
-			else {
-				var etmp = ident "@tmp" p;
-				var prr = [print_neko (" " + attr + "=\"") p; print_escaped etmp; print_neko "\"" p];
-				block [
-					(EVars [("@tmp",Some ast_expr(e))],p);
-					(EIf is_true(etmp) block(prr) None,p)
-				]
-			}
-		}) n.n_attrs;
-		var content, nend = match n.n_content {
-			| None -> ([], print_neko "/>" p)
-			| Some cl ->
-				var cl, _, _ = ast_content [] cl;
-				(print_neko ">" p :: List.rev cl, print_neko ("</"+n.n_node+">") p)
-		};
-		var content = List.concat [
-			[nbegin];
-			List.concat attributes;
-			macros;
-			attrs;
-			content;
-			[nend];
-		];
-		match n.n_repeat {
-		| None -> block content
-		| Some (v,e) -> build_repeat v e content p
-		}
-	| XMacroCall (name,params) ->
-		function make_content(cl) {
-			match cl {
-			| [(XConstr CValue(e),_)] -> ast_expr e
-			| _ ->
-				block [
-					(EVars [("@buf",Some (call "@open" p []))],p);
-					ast_block cl;
-					make_string (call "@close" p [ident "@buf" p])
-				];
-			}
-		}
-		(ECall (macro_name name p) (ident "@buf" p :: ident "@context" p :: List.map make_content params),p)
-	| XMacroDef m ->
-		var ef = match m.m_content {
-			| MContent c -> ast_block c
-			| MAttr a -> block List.concat(List.map make_attr(p) a)
-		};
-		var emacro = (EFunction ("@buf" :: "@context" :: m.m_args) ef,p);
-		macros := (EBinop "=" (macro_name m.m_name p) emacro,p) :: (*macros);
-		(EBlock [],p)
-	| XComment c ->
-		print_neko c p
-	| XData d ->
-		print_neko d p
-	| XCData content ->
-		block (pad_content (print_neko "<![CDATA[" p) content (print_neko "]]>" p))
-	| XConstr _ ->
-		assert()
-	}
-}
-
-function rec ast_block(el) {
-	var el, _, _ = ast_content [] el;
-	block List.rev(el)
-}
-
-function rec pad_content(a,el,b) {
-	var el, _, _ = ast_content [] el;
-	a :: List.rev (b :: el)
-}
-
-function rec build_repeat(v,e,content,p) {
-	var vname = "repeat@" + v;
-	block [
-		(EVars [(vname,Some (call "@iter" p [ast_expr(e)]))],p);
-		call "@loop" p [
-			ident vname p;
-			(EFunction [v;"@buf";"@context"] block(content),p);
-			ident "@buf" p;
-			ident "@context" p;
-		];
-	]
-}
-
-function rec ast_content(acc,el) {
-	match el {
-	| [] -> (acc,None,[])
-	| e :: el ->
-		match fst e {
-		| XConstr c ->
-			var p = snd e;
-			match c {
-			| CValue e ->
-				ast_content (print_escaped ast_expr(e) :: acc) el
-			| CRaw e ->
-				ast_content (print_expr ast_expr(e) :: acc) el
-			| CIf e ->
-				var cif, celse, el = ast_content [] el;
-				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
-				ast_content (eif :: acc) el
-			| CElseIf e ->
-				var cif, celse, el = ast_content [] el;
-				var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
-				(acc, Some eif, el)
-			| CElse ->
-				var cif, _, el = ast_content [] el;
-				(acc, Some block(List.rev cif), el)
-			| CForeach (v,e) ->
-				var content, _, el = ast_content [] el;
-				var cfor = build_repeat v e List.rev(content) p;
-				ast_content (cfor :: acc) el
-			| CFill v ->
-				var content, _, el = ast_content [] el;
-				/*
-					{
-						var @buf = @open()
-						....
-						@context.<v> = @string.new(@close(buf))
-					}
-				*/
-				var init_buf = (EVars [("@buf",Some (call "@open" p []))],p);
-				var string = make_string (call "@close" p [ident "@buf" p]);
-				var set_var = (EBinop "=" (EField ident("@context",p) v,p) string,p);
-				var cfill = block (init_buf :: List.rev (set_var :: content));
-				ast_content (cfill :: acc) el
-			| CUse file ->
-				var content, _, el = ast_content [] el;
-				/*
-					@use(
-						<file>,
-						@buf,
-						@context,
-						function(@buf,@context) { ... }
-					);
-				*/
-				var cuse = call "@use" p [
-					ast_expr(file);
-					ident "@buf" p;
-					ident "@context" p;
-					(EFunction ["@buf";"@context"] block(content),p);
-				];
-				ast_content (cuse :: acc) el
-			| CSet (v,e) ->
-				var eset = (EBinop "=" context(v,p) ast_expr(e),p);
-				ast_content (eset :: acc) el
-			| CEnd ->
-				(acc,None,el)
-			}
-		| _ ->
-			ast_content (ast_element e :: acc) el
-		}
-	}
-}
-
-// PHP IMPLEMENTATION
-
 type context {
 	mutable temp_counter : int;
 	buffer : Buffer.t;
+	mutable inphp : bool;
+	mutable blocks_closing : string list;
+	mutable call_level : int;
 }
 
-function rec curly_open()  { " { " }
-function rec curly_close() { " } " }
-function rec php_open()    { "<?php " }
-function rec php_close()   { "?>" }
+function php_op(o) {
+	var s = s_op(o);
+	match s {
+	| "!=" -> "!=="
+	| "==" -> "==="
+	| s -> s
+	}
+}
 
-function print(ctx,s) {
+function cdata(ctx,s) {
+	if ctx.inphp then {
+		Buffer.add(ctx.buffer," ?>\n");
+		ctx.inphp := false;
+	}
+	Buffer.add(ctx.buffer,s);
+}
+
+function php(ctx,s) {
+	if !ctx.inphp then {
+		Buffer.add(ctx.buffer,"<?php ");
+		ctx.inphp := true;
+	}
 	Buffer.add(ctx.buffer,s);
 }
 
 function temp(ctx) {
-// TODO: check the tmp var is not declared already
-	var tmp = "$__tmp"+ctx.temp_counter+"__";
+	var tmp = "$t"+ctx.temp_counter;
 	ctx.temp_counter := ctx.temp_counter+1;
 	tmp;
+}
+
+function repeater(v) {
+	"$repeater_"+v;
+}
+
+function escape_single_quote(s) {
+	var b = Buffer.create();
+	function rec loop(i) {
+		if i == String.length s then
+			Buffer.string b
+		else {
+			match String.get s i {
+			| '\'' -> Buffer.add b "\\'"
+			| c -> Buffer.add_char b c
+			};
+			loop (i+1)
+		}
+	};
+	loop(0);
 }
 
 function rec gen_ast_expr(ctx,e) {
@@ -320,233 +82,283 @@ function rec gen_ast_expr(ctx,e) {
 	match fst e {
 	| VConst c ->
 		match c {
-		| CInt i -> print ctx i
-		| CFloat f -> print ctx f
-		| CString s -> print ctx s
+		| CInt i -> php ctx i
+		| CFloat f -> php ctx f
+		| CString s -> php(ctx,"'"+escape_single_quote(s)+"'") // TODO: escape this
 		}
-	| VIdent "true" -> print ctx "true"
-	| VIdent "false" -> print ctx "false"
-	| VIdent "null" -> print ctx "null"
-// TODO: check this
-//| i -> EField ident("@context",p) i
-	| VIdent i -> print(ctx,"$"+i)
-	| VVar v -> print(ctx,"$"+v)
+	| VIdent "true" -> php ctx "true"
+	| VIdent "false" -> php ctx "false"
+	| VIdent "null" -> php ctx "null"
+	| VIdent i -> php(ctx,"$ctx->"+i)
+	| VVar v -> php(ctx,"$_"+v)
 	| VIf (e1,e2,e3) -> 
-		print(ctx,php_open()+"if(");
 		gen_ast_expr(ctx, e1);
-		print(ctx,")"+php_close()+curly_open());
+		php(ctx," ? ");
 		gen_ast_expr(ctx, e2);
-		print(ctx,curly_close());
+		php(ctx," : ");
 		(match e3 {
 		| Some e ->
-			print(ctx,php_open()+"else"+curly_open());
 			gen_ast_expr(ctx, e);
-			print(ctx,curly_close());
 		| _ -> 
-			()
+			php(ctx,"null");
 		});
-	| _ -> ()
-/*
-	
-	
-	
-	| VBinop (op,e1,e2) -> EBinop s_op(op) ast_expr(e1) ast_expr(e2)
+	| VBinop (op,e1,e2) -> 
+		gen_ast_expr(ctx,e1);
+		php(ctx," "+php_op(op)+" ");
+		gen_ast_expr(ctx,e2);
 	| VUnop (op,pref,e) ->
 		match op {
-		| Increment -> EBinop (if pref then "+=" else "++=") ast_expr(e) (EConst Int(1),p)
-		| Decrement -> EBinop (if pref then "-=" else "--=") ast_expr(e) (EConst Int(1),p)
-		| Not -> ECall (EConst Builtin("not"), p) [ast_expr(e)]
-		| Neg -> EBinop "-" (EConst Int(0),p) ast_expr(e)
+		| Increment ->
+			if pref then php(ctx,"++");
+			gen_ast_expr(ctx,e);
+			if !pref then php(ctx,"++");
+		| Decrement -> 
+			if pref then php(ctx,"--");
+			gen_ast_expr(ctx,e);
+			if !pref then php(ctx,"--");
+		| Not -> 
+			php(ctx,"!");
+			gen_ast_expr(ctx,e);
+		| Neg -> 
+			php(ctx,"-");
+			gen_ast_expr(ctx,e);
 		}
-	| VCall (e,el) -> ECall ast_expr(e) (List.map ast_expr el)
-	| VParent e -> EParenthesis ast_expr(e)
-	| VField ((VIdent "repeat",_),k) -> EConst Ident("repeat@" + k)
-	| VField (e,v) -> EField ast_expr(e) v
-	| VArray (e1,e2) -> EArray ast_expr(e1) ast_expr(e2)
+	| VCall (e,el) -> 
+		gen_ast_expr(ctx,e);
+		ctx.call_level := ctx.call_level + 1;
+		php(ctx,"(");
+		gen_ast_expr_params ctx el;
+		php(ctx,")");
+		ctx.call_level := ctx.call_level - 1;
+	| VParent e -> 
+		php(ctx,"(");
+		gen_ast_expr(ctx,e);
+		php(ctx,")");
+	| VField ((VIdent "repeat",_),k) -> 
+		php(ctx, repeater(k))
+	| VField (e,v) -> 
+		gen_ast_expr(ctx,e);
+		php(ctx,"->"+v);
+	| VArray (e1,e2) ->
+		gen_ast_expr(ctx,e1);
+		php(ctx,"[");
+		gen_ast_expr(ctx,e2);
+		php(ctx,"]");
 	| VArrayDecl el ->
-		var arr = (ECall (EConst Builtin("array"), p) (List.map ast_expr el),p);
-		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
-*/
+		php(ctx,"array(");
+		gen_ast_expr_params ctx el;
+		php(ctx,")");
+	| VBool e ->
+		//false , null and 0
+		php(ctx,"templo_is_true(");
+		match fst e {
+		| VParent e ->
+			gen_ast_expr(ctx,e);
+		| _ ->
+			gen_ast_expr(ctx,e);
+		}
+		php(ctx,")");
 	}
+}
+
+function rec gen_ast_expr_params(ctx,el) {
+	match el {
+	| [] -> 
+		()
+	| e :: [] ->
+		gen_ast_expr(ctx,e);
+	| e :: el ->
+		gen_ast_expr(ctx,e);
+		php(ctx,", ");
+		gen_ast_expr_params(ctx,el);
+	}
+}
+
+
+function open_block(ctx,close_string) {
+	ctx.blocks_closing := close_string :: ctx.blocks_closing
+}
+
+function close_block(ctx) {
+	match ctx.blocks_closing {
+	| [] -> ()
+	| s :: sl ->
+		if s != "" then php(ctx, s);
+		ctx.blocks_closing := sl
+	}
+}
+
+function gen_foreach(ctx,v,e) {
+	php(ctx, repeater(v)+" = new templo_repeater(");
+	gen_ast_expr(ctx,e);
+	php(ctx, "); ");
+	php(ctx, " while("+repeater(v)+"->hasNext()): ");
+	php(ctx, "$_" + v + " = " + repeater(v) + "->next(); ");
+	open_block(ctx,"endwhile;");
 }
 
 function gen_const_expr(ctx,e) {
 	match e {
 	| CValue e ->
-		gen_ast_expr(ctx,e)
+		if ctx.call_level == 0 then 
+			php(ctx, "echo ");
+		php(ctx, "htmlspecialchars(");
+		gen_ast_expr(ctx,e);
+		php(ctx, ")"); // TODO: check this is consistent with neko for quotes and char replacements
+		if ctx.call_level == 0 then 
+			php(ctx, ";");
 	| CRaw e ->
-		gen_ast_expr(ctx,e)
+		if ctx.call_level == 0 then 
+			php(ctx, "echo ");
+		gen_ast_expr(ctx,e);
+		if ctx.call_level == 0 then 
+			php(ctx, ";");
 	| CIf e ->
-		gen_ast_expr(ctx,e)
-	| _ -> 
-		print(ctx,"gen_const_expr")
-/*
+		php(ctx, "if(");
+		gen_ast_expr(ctx,e);
+		php(ctx, "):");
+		open_block(ctx,"endif;");
 	| CElseIf e ->
-		var cif, celse, el = ast_content [] el;
-		var eif = (EIf make_bool(e) block(List.rev cif) celse, p);
-		(acc, Some eif, el)
+		php(ctx, "elseif(");
+		gen_ast_expr(ctx,e);
+		php(ctx, "):");
 	| CElse ->
-		var cif, _, el = ast_content [] el;
-		(acc, Some block(List.rev cif), el)
+		php(ctx, "else:");
 	| CForeach (v,e) ->
-		var content, _, el = ast_content [] el;
-		var cfor = build_repeat v e List.rev(content) p;
-		ast_content (cfor :: acc) el
+		gen_foreach(ctx,v,e);
 	| CFill v ->
-		var content, _, el = ast_content [] el;
-//			{
-//				var @buf = @open()
-//				....
-//				@context.<v> = @string.new(@close(buf))
-//			}
-		var init_buf = (EVars [("@buf",Some (call "@open" p []))],p);
-		var string = make_string (call "@close" p [ident "@buf" p]);
-		var set_var = (EBinop "=" (EField ident("@context",p) v,p) string,p);
-		var cfill = block (init_buf :: List.rev (set_var :: content));
-		ast_content (cfill :: acc) el
+		php(ctx, "ob_start();");
+		open_block(ctx,"$_"+v+" = ob_get_contents(); ob_end_clean();");
 	| CUse file ->
-		var content, _, el = ast_content [] el;
-//			@use(
-//				<file>,
-//				@buf,
-//				@context,
-//				function(@buf,@context) { ... }
-//			);
-		var cuse = call "@use" p [
-			ast_expr(file);
-			ident "@buf" p;
-			ident "@context" p;
-			(EFunction ["@buf";"@context"] block(content),p);
-		];
-		ast_content (cuse :: acc) el
+		php(ctx, "include dirname(__FILE__).'/'.");
+		gen_ast_expr(ctx,file);
+		php(ctx, ".'.php';");
 	| CSet (v,e) ->
-		var eset = (EBinop "=" context(v,p) ast_expr(e),p);
-		ast_content (eset :: acc) el
+		php(ctx,"$_"+v+" = ");
+		gen_ast_expr(ctx,e);
+		php(ctx,";");
 	| CEnd ->
-		(acc,None,el)
-*/
+		close_block(ctx);
 	}
 }
 
 function rec generate_attr(ctx,p,(n,content)) {
-	print(ctx, " " + n + "=\"");
+	cdata(ctx, " " + n + "=\"");
 	List.iter generate_element(ctx) content;
-	print(ctx, "\"")
+	cdata(ctx, "\"")
 }
 
-function rec php_curly_close() {
-	php_open() + curly_close() + php_close();
+function rec gen_var_params(ctx,sl) {
+	match sl {
+	| [] -> 
+		()
+	| s :: [] ->
+		php(ctx,"$_"+s);
+	| s :: sl ->
+		php(ctx,"$_"+s);
+		php(ctx,", ");
+		gen_var_params(ctx,sl);
+	}
+}
+
+function rec gen_macro_call(ctx,name,params) {
+	ctx.call_level := ctx.call_level+1;
+	php(ctx, "macro_" + name + "(");
+	generate_element_params ctx params;
+	php(ctx, ");");
+	ctx.call_level := ctx.call_level-1;
+}
+
+function rec generate_element_params(ctx,el) {
+	match el {
+	| [] -> 
+		()
+	| e :: [] ->
+		List.iter generate_element(ctx) e;
+	| e :: el ->
+		List.iter generate_element(ctx) e;
+		php(ctx,", ");
+		generate_element_params(ctx,el);
+	}
 }
 
 function rec generate_element(ctx,e) {
 	var p = snd e;
 	match fst e {
-	| XNode n ->		
-// TODO: macros
-//n.n_macros
-/*
-		var macros = List.map (function((m,_,cl)) {
-			ast_element (XMacroCall m cl,p)
-		}) n.n_macros;
-*/
-		var has_repeat = match n.n_repeat {
-			| None -> false;
-			| Some (v,e) ->
-				print(ctx,php_open()+"foreach(");
-				gen_ast_expr(ctx,e);
-				print(ctx," as $"+v+")"+curly_open()+php_close());
-				true
-			};
+	| XNode n ->				
+		match n.n_repeat {
+		| None -> 
+			open_block(ctx,"")
+		| Some (v,e) ->
+			gen_foreach(ctx,v,e)
+		};
 		
-		var has_cond = match n.n_cond {
-			| None -> false
-			| Some cond -> 
-				print(ctx,php_open()+"if(");
-				gen_ast_expr(ctx,cond);
-				print(ctx,")"+curly_open()+php_close());
-				true
-			};
+		match n.n_cond {
+		| None -> open_block(ctx,"")
+		| Some cond -> 
+			php(ctx," if(");
+			gen_ast_expr(ctx,cond);
+			php(ctx,"):");
+			open_block(ctx," endif;")
+		};
 		
-		print(ctx, "<" + n.n_node);
+		cdata(ctx, "<" + n.n_node);
+		List.iter (function((name,_,params)){ gen_macro_call ctx name params }) n.n_macros;
 		List.iter generate_attr(ctx,p) n.n_attributes;
 
-// TODO: check this matches the nko implementation
+// TODO: check this matches the neko implementation
 		List.iter (function((attr,e)) {
-			if Map.exists xhtml_attributes attr then {
-				print(ctx,php_open()+"if(");
-				gen_ast_expr(ctx,e);
-				print(ctx,")"+curly_open()+php_close());
-				print(ctx, " "+attr+"=\""+attr+"\"");
-			} else {
-				var etmp = temp ctx;
-				print(ctx,php_open()+etmp+" = ");
-				gen_ast_expr(ctx,e);
-				print(ctx,"; if("+etmp+")"+curly_open()+php_close());
-				print(ctx," " + attr + "=\"" + etmp + "\"");
-			}
-			print(ctx, php_curly_close());
+			var etmp = temp ctx;
+			php(ctx,etmp+" = ");
+			gen_ast_expr(ctx,e);
+			php(ctx,"; if(templo_is_true("+etmp+")");
+			php(ctx," echo ' " + attr + "=\"'." + etmp + ".'\"'; ");
 		}) n.n_attrs;
 
 		match n.n_content {
 		| None -> 
-			print(ctx,"/>")
+			cdata(ctx,"/>")
 		| Some cl ->
-			print(ctx,">");
+			cdata(ctx,">");
 			List.iter generate_element(ctx) cl;
-			print(ctx,"</"+n.n_node+">")
+			cdata(ctx,"</"+n.n_node+">")
 		};
-		
-		if has_cond then print(ctx, php_curly_close());
-		if has_repeat then print(ctx, php_curly_close());
+		close_block(ctx);
+		close_block(ctx);
 	| XMacroCall (name,params) ->
-// TODO:
-		print(ctx, "XMacroCall")
-/*
-		function make_content(cl) {
-			match cl {
-			| [(XConstr CValue(e),_)] -> ast_expr e
-			| _ ->
-				block [
-					(EVars [("@buf",Some (call "@open" p []))],p);
-					ast_block cl;
-					make_string (call "@close" p [ident "@buf" p])
-				];
-			}
-		}
-		(ECall (macro_name name p) (ident "@buf" p :: ident "@context" p :: List.map make_content params),p)
-*/
+		gen_macro_call ctx name params
+		/*
+		ctx.call_level := ctx.call_level+1;
+		php(ctx, "macro_" + name + "(");
+		generate_element_params ctx params;
+		php(ctx, ");");
+		ctx.call_level := ctx.call_level-1;
+		*/
 	| XMacroDef m ->
-// TODO:
-		print(ctx, "XMacroDef")
-/*
-		var ef = match m.m_content {
-			| MContent c -> ast_block c
-			| MAttr a -> block List.concat(List.map make_attr(p) a)
-		};
-		var emacro = (EFunction ("@buf" :: "@context" :: m.m_args) ef,p);
-		macros := (EBinop "=" (macro_name m.m_name p) emacro,p) :: (*macros);
-		(EBlock [],p)
-*/
+		php(ctx, "\nfunction macro_" + m.m_name + "(");
+		gen_var_params ctx m.m_args;
+		php(ctx, ") {\n");
+		open_block(ctx, "\n}\n");
+		match m.m_content {
+			| MContent c ->
+				List.iter generate_element(ctx) c;
+			| MAttr a ->
+				List.iter generate_attr(ctx,p) a;
+		};		
+		close_block(ctx);
 	| XComment c ->
-		print(ctx, c)
+		cdata(ctx, c)
 	| XData d ->
-		print(ctx, d)
+		cdata(ctx, d)
 	| XCData content ->
-		print(ctx, "<![CDATA[");
+		cdata(ctx, "<![CDATA[");
 		List.iter generate_element(ctx) content;
-		print(ctx, "]]>")
+		cdata(ctx, "]]>")
 	| XConstr e ->
 		gen_const_expr(ctx,e);
-// TODO: implement
-//		print(ctx, "XConstr")
-/*		assert() */
 	}
 }
 
-
-/*
-* ast is a tuple of Ast.elt_def and Ast.pos
-*/
 function generate_template(ctx, content) {
 	generate_element(ctx, content);
 }
@@ -565,8 +377,12 @@ function generate_file(output,(file,content,imports)) {
 	var ctx = {
 		temp_counter = 0;
 		buffer = Buffer.create();
+		inphp = false;
+		blocks_closing = [];
+		call_level = 0;
 	};
 	List.iter generate_template(ctx) content;
+	cdata(ctx,""); // closes opened php when required
 	
 	var fout = output + file + ".php";
 	var ch = IO.write_file fout true;

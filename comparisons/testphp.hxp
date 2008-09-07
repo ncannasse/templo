@@ -1,0 +1,10 @@
+﻿<haxe selected="0">
+  <output name="PHP" mode="php" out="bin" class="Test" lib="" cmd="" main="True" debug="False">-cp ../</output>
+  <output name="Neko" mode="neko" out="bin/index.n" class="Test" lib="" cmd="buildtemplates.bat" main="True" debug="True">-cp ../</output>
+  <files path="/">
+    <dir path="templo">
+      <file path="..\templo\Loader.hx" />
+    </dir>
+    <file path="Test.hx" />
+  </files>
+</haxe>

@@ -1,0 +1,9 @@
+::if vtrue::<b>it's true</b>::else::<b>it's false</b>::end::
+
+::if vtrue::
+<b>it's true</b>
+::else::
+<b>it's false</b>
+::end::
+
+<span ::cond vtrue::>true</span>

@@ -36,6 +36,8 @@ private typedef Iter = {
 	var size : Null<Int>;
 };
 
+#if neko
+
 private extern enum Buffer {
 }
 
@@ -203,3 +205,79 @@ class Loader {
 	};
 
 }
+
+#elseif php
+
+class Loader {
+
+	public static var BASE_DIR = "";
+	public static var TMP_DIR = "/tmp/";
+	public static var MACROS = "macros.mtt";
+	public static var OPTIMIZED = false;
+	public static var DEBUG = false;
+
+	var file : String;
+
+	public function new( file:String ) {
+		if( !OPTIMIZED )
+			compileTemplate(file);
+		this.file = tmpFileId(file);
+	}
+
+	public function execute( ctx : Dynamic ) : String {
+		if(ctx == null) ctx = {};
+		untyped __call__("ob_start");
+		untyped __call__("require", file);
+		var r : String = untyped __call__("ob_get_contents");
+		untyped __call__("ob_end_clean");
+		return r;
+	}
+
+	function tmpFileId( path:String ) : String {
+		if( path.charAt(0) == "/" ) path = path.substr(1);
+		path = path.split("/").join("__");
+		path = path.split("\\").join("__");
+		path = path.split(":").join("__");
+		path = path.split("____").join("__");
+		return TMP_DIR + path + ".php";
+	}
+
+	function loadTemplate( nPath:String ) {
+
+	}
+
+	function compileTemplate( path:String ) : Void {
+		var tmpFile = tmpFileId(path);
+		if( php.FileSystem.exists(tmpFile) ) {
+			var macroStamp = MACROS != null && php.FileSystem.exists(BASE_DIR+MACROS) ? php.FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() : null;
+			var sourceStamp = php.FileSystem.stat(BASE_DIR+path).mtime.getTime();
+			var stamp = php.FileSystem.stat(tmpFile).mtime.getTime();
+			if( stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp) )
+				return;
+		}
+		var result = 0;
+		var args = new Array();
+		args.push("-php");
+		if( MACROS != null ) {
+			args.push("-macros");
+			args.push(MACROS);
+		}
+		if( DEBUG )
+			args.push("-debug");
+		args.push("-cp");
+		args.push(BASE_DIR);
+		args.push("-output");
+		args.push(TMP_DIR);
+		args.push(path);
+		var p = new php.io.Process("temploc2",args);
+		var code = p.exitCode();
+		if( code != 0 )
+			throw "Temploc compilation of "+path+" failed : "+p.stderr.readAll().toString();
+	}
+
+	static function __init__() {
+		untyped __php__("function templo_is_true($v) { return $v || $v === ''; }");
+	}
+}
+
+#end

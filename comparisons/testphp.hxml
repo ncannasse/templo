@@ -1,0 +1,11 @@
+# PHP
+-php bin
+-main Test
+-cp ../
+
+--next
+# Neko
+-neko bin/index.n
+-main Test
+-debug
+-cp ../

@@ -1,0 +1,16 @@
+::if value == ""::true::else::false::end::
+::if value == ''::true::else::false::end::
+::if (value == '' || value == null)::true::else::false::end::
+::if value == "a"::true::else::false::end::
+::if value == 'a'::true::else::false::end::
+::if value == null::true::else::false::end::
+::if value == 0::true::else::false::end::
+::if value == 1::true::else::false::end::
+::if value != ""::true::else::false::end::
+::if value != ''::true::else::false::end::
+::if (value != '' && value != null)::true::else::false::end::
+::if value != "a"::true::else::false::end::
+::if value != 'a'::true::else::false::end::
+::if value != null::true::else::false::end::
+::if value != 0::true::else::false::end::
+::if value != 1::true::else::false::end::
