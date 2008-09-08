@@ -126,12 +126,12 @@ class Loader {
 	}
 
 	function saveCache() : Dynamic {
-		if( !cache ) return null;
+		if( cache ) return null;
 		return untyped __dollar__new(__dollar__loader.cache);
 	}
 
 	function restoreCache( c : Dynamic ) {
-		if( cache )
+		if( !cache )
 			untyped __dollar__loader.cache = c;
 	}
 
