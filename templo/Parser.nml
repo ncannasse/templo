@@ -142,6 +142,7 @@ function rec parse_construct(s) {
 	| [< (Ident "foreach",_); (Ident k,_); e = parse_expr s >] -> CForeach k e
 	| [< (Ident "fill",_); (Ident k,_); >] -> CFill k
 	| [< (Ident "end",_) >] -> CEnd
+	| [< (Ident "eval",_); e = parse_expr s >] -> CEval e
 	| [< e = parse_expr s >] -> CValue e
 	}
 	cur := old;

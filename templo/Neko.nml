@@ -285,6 +285,8 @@ function rec ast_content(acc,el) {
 			| CSet (v,e) ->
 				var eset = (EBinop "=" context(v,p) ast_expr(e),p);
 				ast_content (eset :: acc) el
+			| CEval e ->
+				ast_content (ast_expr(e) :: acc) el
 			| CEnd ->
 				(acc,None,el)
 			}

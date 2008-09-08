@@ -237,6 +237,9 @@ function gen_const_expr(ctx,e) {
 		php(ctx,"$_"+v+" = ");
 		gen_ast_expr(ctx,e);
 		php(ctx,";");
+	| CEval e ->
+		gen_ast_expr(ctx,e);
+		php(ctx,";");
 	| CEnd ->
 		close_block(ctx);
 	}

@@ -84,6 +84,7 @@ type construct {
 	CFill : string;
 	CUse : expr;
 	CSet : (string,expr);
+	CEval : expr;
 	CEnd;
 }
 

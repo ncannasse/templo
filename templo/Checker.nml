@@ -346,6 +346,8 @@ function rec check_rec(chk,e) {
 		| CSet (v,ex) ->
 			if List.mem v chk.vars then error "You cannot set a local variable" snd(e);
 			CSet v (check_expr chk ex)
+		| CEval e ->
+			CEval (check_expr chk e)
 		| CIf e ->
 			chk.stack := cur :: chk.stack;
 			CIf (make_bool chk e)
