@@ -315,6 +315,12 @@ function rec check_rec(chk,e) {
 		var params = check_macro chk name (if chk.in_attrib then MKValue else MKContent) params snd(e);
 		XMacroCall name params
 	| XMacroDef m ->
+		try {
+			var m2 = Map.find chk.macros m.m_name;
+			if m2.mfile == None then error ("Duplicate macro declaration : " + m.m_name) snd(e)
+		} catch {
+			Not_found -> ()
+		}
 		add_macro chk m None;
 		var old = chk.vars;
 		List.iter (function(v) add_variable chk v snd(e)) m.m_args;
