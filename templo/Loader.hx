@@ -217,27 +217,34 @@ class Loader {
 	public static var DEBUG = false;
 
 	var file : String;
+	var templatename : String;
 
 	public function new( file:String ) {
 		if( !OPTIMIZED )
 			compileTemplate(file);
+		this.templatename = file;
 		this.file = tmpFileId(file);
 	}
 
 	public function execute( ctx : Dynamic ) : String {
 		if(ctx == null) ctx = {};
-		bufferReset();
-		bufferCreate();
 
-		if(MACROS != null) {
-			if( !OPTIMIZED )
-				compileTemplate(MACROS);
-			untyped __call__("require_once", tmpFileId(MACROS));
-			macroprefix = getMacroPrefix(MACROS);
+
+		if(MACROS != null && MACROS != '') {
+			var macrosfiles = MACROS.split(' ');
+			if( !OPTIMIZED ) {
+				for(mf in macrosfiles)
+					compileTemplate(mf);
+			}
+			for(mf in macrosfiles)
+				untyped __call__("require_once", tmpFileId(mf));
+			macrosprefixes = getMacroPrefixes([templatename].concat(macrosfiles));
 		} else {
-			macroprefix = null;
+			macrosprefixes = getMacroPrefixes([templatename]);
 		}
 
+		bufferReset();
+		bufferCreate();
 		untyped __call__("require", file);
 		return bufferPop();
 	}
@@ -271,14 +278,25 @@ class Loader {
 		return TMP_DIR + path + ".php";
 	}
 
-	function getMacroPrefix( path:String ) : String {
-		if( path.charAt(0) == "/" ) path = path.substr(1);
-		return (~/[\/:.\\-]+/).replace(path, "__");
+	function getMacroPrefixes( paths : Array<String> ) : Array<String> {
+		var prefixes = [];
+		for(path in paths) {
+			if( path.charAt(0) == "/" ) path = path.substr(1);
+			prefixes.push((~/[\/:.\\-]+/).replace(path, "__"));
+		}
+		return prefixes;
 	}
 
-	var macroprefix : String;
+
+	var macrosprefixes : Array<String>;
 	function macro(name : String, args : Dynamic) {
-		untyped __call__("call_user_func_array", macroprefix+'_'+name, args);
+		for(pre in macrosprefixes) {
+			var n = pre+'_'+name;
+			if(untyped __call__("function_exists", n)) {
+				return untyped __call__("call_user_func_array", n, args);
+			}
+		}
+		throw "invalid macro call to " + name;
 	}
 
 	function includeTemplate( file:String, ctx : Dynamic ) {

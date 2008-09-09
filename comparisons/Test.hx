@@ -123,13 +123,18 @@ class Test {
 				date : new Date(2008,0,1,0,0,0)
 			}
 		}, {
-			name : "macros-omonym", test : "test-macros.mtt", macros : "omonym-macros.mtt",
+			name : "macros-omonym", test : "test-omonym-macros.mtt", macros : "omonym-macros.mtt",
 			context : {
 				user : {
 					name : "haXe",
 					lastLogDate : new Date(2008,0,1,0,0,0)
 				},
 				date : new Date(2008,0,1,0,0,0)
+			}
+		}, {
+			name : "inlined-macro", test : "inlined-macro.mtt", macros : null,
+			context : {
+				name : 'PHP'
 			}
 		}
 	];

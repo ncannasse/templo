@@ -24,7 +24,6 @@ type context {
 	mutable inphp : bool;
 	mutable blocks_closing : string list;
 	mutable call_level : int;
-	mutable context : string;
 	mutable inmacro : bool;
 	mutable container : string;
 }
@@ -78,6 +77,13 @@ function php_op(o) {
 	| "==" -> "==="
 	| s -> s
 	}
+}
+
+function var_ctx(ctx) {
+	if ctx.inmacro then
+		"$"
+	else
+		"$ctx->";
 }
 
 function cdata(ctx,s) {
@@ -152,8 +158,8 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "true" -> php ctx "true"
 	| VIdent "false" -> php ctx "false"
 	| VIdent "null" -> php ctx "null"
-	| VIdent i -> php(ctx,ctx.context+i)
-	| VVar v -> php(ctx,ctx.context+v)
+	| VIdent i -> php(ctx,var_ctx(ctx)+i)
+	| VVar v -> php(ctx,var_ctx(ctx)+v)
 	| VIf (e1,e2,e3) -> 
 		gen_ast_expr(ctx, e1);
 		php(ctx," ? ");
@@ -282,7 +288,7 @@ function gen_foreach(ctx,v,e) {
 	gen_ast_expr(ctx,e);
 	php(ctx, "); ");
 	php(ctx, " while("+repeater(v)+"->hasNext()): ");
-	php(ctx, ctx.context + v + " = " + repeater(v) + "->next(); ");
+	php(ctx, var_ctx(ctx) + v + " = " + repeater(v) + "->next(); ");
 	open_block(ctx,"endwhile;");
 }
 
@@ -317,16 +323,16 @@ function gen_const_expr(ctx,e) {
 		gen_foreach(ctx,v,e);
 	| CFill v ->
 		php(ctx, "$this->bufferCreate();");
-		open_block(ctx,ctx.context+v+" = $this->bufferPop();");
+		open_block(ctx,var_ctx(ctx)+v+" = $this->bufferPop();");
 	| CUse file ->
 		var t = temp(ctx);
 		php(ctx, "$this->bufferCreate();");
 		php(ctx, t+" = ");
 		gen_ast_expr(ctx,file);
 		php(ctx, ";");
-		open_block(ctx,ctx.context+"__content__ = $this->bufferPop(); $this->includeTemplate("+t+", $ctx);");
+		open_block(ctx,var_ctx(ctx)+"__content__ = $this->bufferPop(); $this->includeTemplate("+t+", $ctx);");
 	| CSet (v,e) ->
-		php(ctx,ctx.context+v+" = ");
+		php(ctx,var_ctx(ctx)+v+" = ");
 		gen_ast_expr(ctx,e);
 		php(ctx,";");
 	| CEval e ->
@@ -398,8 +404,8 @@ function rec generate_element(ctx,e) {
 		};
 		
 		cdata(ctx, "<" + n.n_node);
-		List.iter (function((name,_,params)){ gen_macro_call ctx name params }) n.n_macros;
 		List.iter generate_attr(ctx,p) n.n_attributes;
+		List.iter (function((name,_,params)){ gen_macro_call ctx name params }) n.n_macros;
 
 // TODO: check this matches the neko implementation
 		List.iter (function((attr,e)) {
@@ -425,7 +431,6 @@ function rec generate_element(ctx,e) {
 	| XMacroDef m ->
 		php(ctx, "");
 		ctx.inmacro := true;
-		ctx.context := "$";
 		php(ctx, "\nfunction " + ctx.container + "_" + m.m_name + "(");
 		gen_var_params ctx m.m_args;
 		php(ctx, ") {\n");
@@ -467,7 +472,6 @@ function generate_file(output,(file,content,imports)) {
 		inphp = false;
 		blocks_closing = [];
 		call_level = 0;
-		context = "$ctx->";
 		inmacro = false;
 		container = normalize_name(file);
 	};

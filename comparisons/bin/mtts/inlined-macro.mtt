@@ -1,0 +1,17 @@
+BEFORE
+
+<macro name="f(x)">
+Hello ::x::!
+</macro>
+
+$$f(haXe)
+
+MIDDLE
+
+<macro name="at()" title="title"/>
+
+AFTER
+
+<a href="#" $$at()>$$f(Neko)</a>
+
+<a href="#" $$at()>$$f(::name::)</a>
