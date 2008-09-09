@@ -389,16 +389,18 @@ function generate_file(output,debug,(file,content,imports)) {
 	var ast, _ , _ = ast_content [] content;
 	var ast = optimize (block (List.rev ast));
 	var macros = List.map optimize (List.rev (*macros));
+	var emacros = (EField (EConst Builtin("exports"),p) "macros",p);
 	var program = block [
 		boot;
 		(EBinop "="
-			(EField (EConst Builtin("exports"),p) "macros",p)
+			emacros
 			(EFunction ["@m"] (block macros),p)
 		,p);
 		(EBinop "=" ident("@m",p) (ECall (EConst Builtin("new"),p) [(EConst Null,p)],p),p);
 		block (List.map (function(file) {
 			call "@macros" p [make_string (EConst String(file),p);ident "@m" p];
 		}) imports);
+		(ECall emacros [ident "@m" p],p);
 		(EBinop "="
 			(EField (EConst Builtin("exports"),p) "execute",p)
 			(EFunction ["@buf";"@context"] ast,p)
