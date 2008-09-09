@@ -1,0 +1,7 @@
+$$userView(::user::)
+
+$$date(::date::)
+
+<a $$onclick(/)>
+$$foo( 555, ::[4,5]::,xxxejk)
+</a>

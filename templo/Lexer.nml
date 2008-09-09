@@ -25,6 +25,7 @@ type keyword {
 	KContinue;
 	KFunction;
 	KReturn;
+	KThis;
 	KTry;
 	KCatch;
 	KDefault;
@@ -98,6 +99,7 @@ function s_keyword(k) {
 	| KContinue -> "continue"
 	| KFunction -> "function"
 	| KReturn -> "return"
+	| KThis -> "this"
 	| KTry -> "try"
 	| KCatch -> "catch"
 	| KDefault -> "default"
@@ -141,7 +143,7 @@ function dict(f,l) {
 }
 
 var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KDo;KFor;KBreak;KContinue;
-	KFunction;KReturn;KTry;KCatch;KDefault;KSwitch];
+	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch];
 
 var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
 	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod];

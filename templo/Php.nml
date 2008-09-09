@@ -24,41 +24,9 @@ type context {
 	mutable inphp : bool;
 	mutable blocks_closing : string list;
 	mutable call_level : int;
-}
-
-function php_op(o) {
-	var s = s_op(o);
-	match s {
-	| "!=" -> "!=="
-	| "==" -> "==="
-	| s -> s
-	}
-}
-
-function cdata(ctx,s) {
-	if ctx.inphp then {
-		Buffer.add(ctx.buffer," ?>\n");
-		ctx.inphp := false;
-	}
-	Buffer.add(ctx.buffer,s);
-}
-
-function php(ctx,s) {
-	if !ctx.inphp then {
-		Buffer.add(ctx.buffer,"<?php ");
-		ctx.inphp := true;
-	}
-	Buffer.add(ctx.buffer,s);
-}
-
-function temp(ctx) {
-	var tmp = "$t"+ctx.temp_counter;
-	ctx.temp_counter := ctx.temp_counter+1;
-	tmp;
-}
-
-function repeater(v) {
-	"$repeater_"+v;
+	mutable context : string;
+	mutable inmacro : bool;
+	mutable container : string;
 }
 
 function escape_single_quote(s) {
@@ -77,6 +45,101 @@ function escape_single_quote(s) {
 	loop(0);
 }
 
+function rec clean_extra_underscores(s) {
+	var len = String.length s;
+	var ns = String.concat "__" (String.split (s) "____");
+	if String.length ns < len then
+		clean_extra_underscores ns
+	else
+		ns;
+}
+
+function normalize_name(s) {
+	var b = Buffer.create();
+	function rec loop(i) {
+		if i == String.length s then {
+			clean_extra_underscores(Buffer.string b);
+		} else {
+			match String.get s i {
+			| c when List.mem c ['\\'; '/'; ':'; '.'; '-'] ->
+				Buffer.add b "__"
+			| c -> 
+				Buffer.add_char b c
+			};
+			loop (i+1)
+		}
+	};
+	loop(0);
+}
+
+function php_op(o) {
+	match s_op(o) {
+	| "!=" -> "!=="
+	| "==" -> "==="
+	| s -> s
+	}
+}
+
+function cdata(ctx,s) {
+	if ctx.inmacro then {
+		if ctx.inphp then {
+			Buffer.add(ctx.buffer,"\necho '");
+		}
+		Buffer.add(ctx.buffer,escape_single_quote s);
+	} else {
+		if ctx.inphp then {
+			Buffer.add(ctx.buffer," ?>");
+			if String.length s > 1 then {
+				if String.get s 0 == '\r' && String.get s 0 == '\n' then
+					Buffer.add(ctx.buffer,"\r\n")
+				else if String.get s 0 == '\r' then
+					Buffer.add(ctx.buffer,"\r")
+				else if String.get s 0 == '\n' then
+					Buffer.add(ctx.buffer,"\n")
+			} else if String.length s > 0 && (String.get s 0) == '\n' then
+				Buffer.add(ctx.buffer,"\n");
+		}
+		Buffer.add(ctx.buffer,s);
+	}
+	ctx.inphp := false;
+}
+
+function php(ctx,s) {
+	if ctx.inmacro then {
+		if !ctx.inphp then {
+			Buffer.add(ctx.buffer,"';\n");
+		}
+		Buffer.add(ctx.buffer,s);
+	} else {
+		if !ctx.inphp then {
+			Buffer.add(ctx.buffer,"<?php ");
+		}
+		Buffer.add(ctx.buffer,s);
+	}
+	ctx.inphp := true;
+}
+
+function temp(ctx) {
+	var tmp = "$t"+ctx.temp_counter;
+	ctx.temp_counter := ctx.temp_counter+1;
+	tmp;
+}
+
+function repeater(v) {
+	"$repeater_"+v;
+}
+
+function rec gen_indirect_method(ctx,name,e,el) {
+	php(ctx,"templo_"+name+"(");
+	ctx.call_level := ctx.call_level + 1;
+	gen_ast_expr(ctx,e);
+	php(ctx,", array(");
+	gen_ast_expr_params ctx el;
+	php(ctx,")");
+	ctx.call_level := ctx.call_level - 1;
+	php(ctx,")");
+}
+
 function rec gen_ast_expr(ctx,e) {
 	var p = snd e;
 	match fst e {
@@ -89,8 +152,8 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "true" -> php ctx "true"
 	| VIdent "false" -> php ctx "false"
 	| VIdent "null" -> php ctx "null"
-	| VIdent i -> php(ctx,"$ctx->"+i)
-	| VVar v -> php(ctx,"$_"+v)
+	| VIdent i -> php(ctx,ctx.context+i)
+	| VVar v -> php(ctx,ctx.context+v)
 	| VIf (e1,e2,e3) -> 
 		gen_ast_expr(ctx, e1);
 		php(ctx," ? ");
@@ -124,21 +187,47 @@ function rec gen_ast_expr(ctx,e) {
 			gen_ast_expr(ctx,e);
 		}
 	| VCall (e,el) -> 
-		gen_ast_expr(ctx,e);
-		ctx.call_level := ctx.call_level + 1;
-		php(ctx,"(");
-		gen_ast_expr_params ctx el;
-		php(ctx,")");
-		ctx.call_level := ctx.call_level - 1;
+		match fst e {
+		| VField (e,v) -> 
+			match v {
+			| v when List.mem v 
+					["cca"; "charAt"; "charCodeAt"; "concat"; "copy"; "indexOf"; "insert"; 
+					 "iterator"; "join"; "lastIndexOf"; "pop"; "push"; "remove"; "reverse"; 
+					 "shift"; "slice"; "sort"; "splice"; "split"; "substr"; "toLowerCase"; 
+					 "toUpperCase"; "toString"; "unshift"] -> 
+				gen_indirect_method ctx v e el
+			| v -> 
+				gen_ast_expr(ctx,e);
+				php(ctx,"->"+v+"(");
+				ctx.call_level := ctx.call_level + 1;
+				gen_ast_expr_params ctx el;
+				ctx.call_level := ctx.call_level - 1;
+				php(ctx,")");
+			}
+		| _ ->
+			gen_ast_expr(ctx,e);
+			php(ctx,"(");
+			ctx.call_level := ctx.call_level + 1;
+			gen_ast_expr_params ctx el;
+			ctx.call_level := ctx.call_level - 1;
+			php(ctx,")");
+		}
 	| VParent e -> 
 		php(ctx,"(");
 		gen_ast_expr(ctx,e);
 		php(ctx,")");
 	| VField ((VIdent "repeat",_),k) -> 
-		php(ctx, repeater(k))
+		php(ctx, repeater(k))	
 	| VField (e,v) -> 
-		gen_ast_expr(ctx,e);
-		php(ctx,"->"+v);
+		match v {
+		| "length" -> 
+			php(ctx,"templo_length(");
+			gen_ast_expr(ctx,e);
+			php(ctx,")");
+		| v ->
+			gen_ast_expr(ctx,e);
+			php(ctx,"->"+v);
+		}
 	| VArray (e1,e2) ->
 		gen_ast_expr(ctx,e1);
 		php(ctx,"[");
@@ -189,11 +278,11 @@ function close_block(ctx) {
 }
 
 function gen_foreach(ctx,v,e) {
-	php(ctx, repeater(v)+" = new templo_repeater(");
+	php(ctx, repeater(v)+" = templo_repeater(");
 	gen_ast_expr(ctx,e);
 	php(ctx, "); ");
 	php(ctx, " while("+repeater(v)+"->hasNext()): ");
-	php(ctx, "$_" + v + " = " + repeater(v) + "->next(); ");
+	php(ctx, ctx.context + v + " = " + repeater(v) + "->next(); ");
 	open_block(ctx,"endwhile;");
 }
 
@@ -202,7 +291,7 @@ function gen_const_expr(ctx,e) {
 	| CValue e ->
 		if ctx.call_level == 0 then 
 			php(ctx, "echo ");
-		php(ctx, "htmlspecialchars(");
+		php(ctx, "templo_string(");
 		gen_ast_expr(ctx,e);
 		php(ctx, ")"); // TODO: check this is consistent with neko for quotes and char replacements
 		if ctx.call_level == 0 then 
@@ -227,14 +316,17 @@ function gen_const_expr(ctx,e) {
 	| CForeach (v,e) ->
 		gen_foreach(ctx,v,e);
 	| CFill v ->
-		php(ctx, "ob_start();");
-		open_block(ctx,"$_"+v+" = ob_get_contents(); ob_end_clean();");
+		php(ctx, "$this->bufferCreate();");
+		open_block(ctx,ctx.context+v+" = $this->bufferPop();");
 	| CUse file ->
-		php(ctx, "include dirname(__FILE__).'/'.");
+		var t = temp(ctx);
+		php(ctx, "$this->bufferCreate();");
+		php(ctx, t+" = ");
 		gen_ast_expr(ctx,file);
-		php(ctx, ".'.php';");
+		php(ctx, ";");
+		open_block(ctx,ctx.context+"__content__ = $this->bufferPop(); $this->includeTemplate("+t+", $ctx);");
 	| CSet (v,e) ->
-		php(ctx,"$_"+v+" = ");
+		php(ctx,ctx.context+v+" = ");
 		gen_ast_expr(ctx,e);
 		php(ctx,";");
 	| CEval e ->
@@ -256,9 +348,9 @@ function rec gen_var_params(ctx,sl) {
 	| [] -> 
 		()
 	| s :: [] ->
-		php(ctx,"$_"+s);
+		php(ctx,"$"+s);
 	| s :: sl ->
-		php(ctx,"$_"+s);
+		php(ctx,"$"+s);
 		php(ctx,", ");
 		gen_var_params(ctx,sl);
 	}
@@ -266,9 +358,9 @@ function rec gen_var_params(ctx,sl) {
 
 function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
-	php(ctx, "macro_" + name + "(");
+	php(ctx, "$this->macro('" + name + "', array(");
 	generate_element_params ctx params;
-	php(ctx, ");");
+	php(ctx, "));");
 	ctx.call_level := ctx.call_level-1;
 }
 
@@ -314,7 +406,7 @@ function rec generate_element(ctx,e) {
 			var etmp = temp ctx;
 			php(ctx,etmp+" = ");
 			gen_ast_expr(ctx,e);
-			php(ctx,"; if(templo_is_true("+etmp+")");
+			php(ctx,"; if(templo_is_true("+etmp+"))");
 			php(ctx," echo ' " + attr + "=\"'." + etmp + ".'\"'; ");
 		}) n.n_attrs;
 
@@ -330,15 +422,11 @@ function rec generate_element(ctx,e) {
 		close_block(ctx);
 	| XMacroCall (name,params) ->
 		gen_macro_call ctx name params
-		/*
-		ctx.call_level := ctx.call_level+1;
-		php(ctx, "macro_" + name + "(");
-		generate_element_params ctx params;
-		php(ctx, ");");
-		ctx.call_level := ctx.call_level-1;
-		*/
 	| XMacroDef m ->
-		php(ctx, "\nfunction macro_" + m.m_name + "(");
+		php(ctx, "");
+		ctx.inmacro := true;
+		ctx.context := "$";
+		php(ctx, "\nfunction " + ctx.container + "_" + m.m_name + "(");
 		gen_var_params ctx m.m_args;
 		php(ctx, ") {\n");
 		open_block(ctx, "\n}\n");
@@ -349,6 +437,7 @@ function rec generate_element(ctx,e) {
 				List.iter generate_attr(ctx,p) a;
 		};		
 		close_block(ctx);
+		ctx.inmacro := false;
 	| XComment c ->
 		cdata(ctx, c)
 	| XData d ->
@@ -371,18 +460,16 @@ function generate_file(output,(file,content,imports)) {
 		psource = file;
 		pline = 0; pmin = 0; pmax = 0;
 	};
-// TODO: macros
-// TODO: imports
-/*	
-	macros := [];
-	var macros = List.rev (*macros);
-*/
+
 	var ctx = {
 		temp_counter = 0;
 		buffer = Buffer.create();
 		inphp = false;
 		blocks_closing = [];
 		call_level = 0;
+		context = "$ctx->";
+		inmacro = false;
+		container = normalize_name(file);
 	};
 	List.iter generate_template(ctx) content;
 	cdata(ctx,""); // closes opened php when required

@@ -226,24 +226,65 @@ class Loader {
 
 	public function execute( ctx : Dynamic ) : String {
 		if(ctx == null) ctx = {};
-		untyped __call__("ob_start");
+		bufferReset();
+		bufferCreate();
+
+		if(MACROS != null) {
+			if( !OPTIMIZED )
+				compileTemplate(MACROS);
+			untyped __call__("require_once", tmpFileId(MACROS));
+			macroprefix = getMacroPrefix(MACROS);
+		} else {
+			macroprefix = null;
+		}
+
 		untyped __call__("require", file);
-		var r : String = untyped __call__("ob_get_contents");
+		return bufferPop();
+	}
+
+	var b : Array<String>;
+	function bufferReset() {
+		b = [];
+	}
+
+	function bufferCreate() {
+		var len = b.length;
+		if(len > 0) {
+			b[len-1] += untyped __call__("ob_get_contents");
+			untyped __call__("ob_end_clean");
+		}
+		untyped __call__("ob_start");
+		b.push('');
+	}
+
+	function bufferPop() {
+		var len = b.length;
+		b[len-1] += untyped __call__("ob_get_contents");
 		untyped __call__("ob_end_clean");
-		return r;
+		if(len > 1) untyped __call__("ob_start");
+		return b.pop();
 	}
 
 	function tmpFileId( path:String ) : String {
 		if( path.charAt(0) == "/" ) path = path.substr(1);
-		path = path.split("/").join("__");
-		path = path.split("\\").join("__");
-		path = path.split(":").join("__");
-		path = path.split("____").join("__");
+		path = (~/[\/:\\]+/).replace(path, "__");
 		return TMP_DIR + path + ".php";
 	}
 
-	function loadTemplate( nPath:String ) {
+	function getMacroPrefix( path:String ) : String {
+		if( path.charAt(0) == "/" ) path = path.substr(1);
+		return (~/[\/:.\\-]+/).replace(path, "__");
+	}
 
+	var macroprefix : String;
+	function macro(name : String, args : Dynamic) {
+		untyped __call__("call_user_func_array", macroprefix+'_'+name, args);
+	}
+
+	function includeTemplate( file:String, ctx : Dynamic ) {
+		if( !OPTIMIZED )
+			compileTemplate(file);
+		untyped __call__("require", tmpFileId(file));
 	}
 
 	function compileTemplate( path:String ) : Void {
@@ -276,8 +317,310 @@ class Loader {
 	}
 
 	static function __init__() {
-		untyped __php__("function templo_is_true($v) { return $v || $v === ''; }");
+		untyped __php__("
+
+function templo_push($a, $p) {
+	if(is_array($a)) {
+		return array_push($a, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'push'), $p);
 	}
 }
 
+function templo_concat($a, $p) {
+	if(is_array($a)) {
+		return array_merge($a, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'concat'), $p);
+	}
+}
+
+function templo_join($a, $p) {
+	if(is_array($a)) {
+		return join($p[0], $a);
+	} else {
+		return call_user_func_array(array($s, 'join'), $p);
+	}
+}
+
+function templo_pop($a, $p) {
+	if(is_array($a)) {
+		return array_pop($a);
+	} else {
+		return call_user_func_array(array($s, 'pop'), $p);
+	}
+}
+
+function templo_reverse($a, $p) {
+	if(is_array($a)) {
+		return rsort($a);
+	} else {
+		return call_user_func_array(array($s, 'reverse'), $p);
+	}
+}
+
+function templo_shift($a, $p) {
+	if(is_array($a)) {
+		return array_shift($a);
+	} else {
+		return call_user_func_array(array($s, 'shift'), $p);
+	}
+}
+
+
+function templo_slice($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_slice($a, $p[0], count($p) > 1 ? $p[1] : null);
+	} else {
+		return call_user_func_array(array($s, 'slice'), $p);
+	}
+}
+
+function templo_sort($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_sort($a, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'sort'), $p);
+	}
+}
+
+function templo_splice($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_splice($a, $p[0], $p[1]);
+	} else {
+		return call_user_func_array(array($s, 'splice'), $p);
+	}
+}
+
+function templo_copy($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_copy($a);
+	} else {
+		return call_user_func_array(array($s, 'copy'), $p);
+	}
+}
+
+function templo_unshift($a, $p) {
+	if(is_array($a)) {
+		return array_unshift($a);
+	} else {
+		return call_user_func_array(array($s, 'unshift'), $p);
+	}
+}
+
+function templo_insert($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_insert($a, $p[0], $p[1]);
+	} else {
+		return call_user_func_array(array($s, 'insert'), $p);
+	}
+}
+
+function templo_remove($a, $p) {
+	if(is_array($a)) {
+		return php_Boot::__array_remove($a, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'remove'), $p);
+	}
+}
+
+function templo_iterator($a, $p) {
+	if(is_array($a)) {
+		return new HArrayIterator($a);
+	} else {
+		return call_user_func_array(array($s, 'iterator'), $p);
+	}
+}
+
+function templo_substr($s, $p) {
+	if(is_string($s)) {
+		return php_Boot::__substr($s, $p[0], count($p) > 1 ? $p[1] : null);
+	} else {
+		return call_user_func_array(array($s, 'substr'), $p);
+	}
+}
+
+function templo_charAt($s, $p) {
+	if(is_string($s)) {
+		return substr($s, $p[0], 1);
+	} else {
+		return call_user_func_array(array($s, 'charAt'), $p);
+	}
+}
+
+function templo_cca($s, $p) {
+	if(is_string($s)) {
+		return ord($s{$p[0]});
+	} else {
+		return call_user_func_array(array($s, 'cca'), $p);
+	}
+}
+
+function templo_charCodeAt($s, $p) {
+	if(is_string($s)) {
+		return php_Boot::__char_code_at($s, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'charCodeAt'), $p);
+	}
+}
+
+function templo_indexOf($s, $p) {
+	if(is_string($s)) {
+		return php_Boot::__index_of($s, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'indexOf'), $p);
+	}
+}
+
+function templo_lastIndexOf($s, $p) {
+	if(is_string($s)) {
+		return php_Boot::__last_index_of($s, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'lastIndexOf'), $p);
+	}
+}
+
+function templo_lenght($v) {
+	if(is_string($v)) {
+		return str_len($v);
+	} else if(is_array($v)) {
+		return count($v);
+	} else {
+		return $v->length;
+	}
+}
+
+function templo_split($s, $p) {
+	if(is_string($s)) {
+		return explode($s, $p[0]);
+	} else {
+		return call_user_func_array(array($s, 'split'), $p);
+	}
+}
+
+function templo_toLowerCase($s, $p) {
+	if(is_string($s)) {
+		return strtolower($s);
+	} else {
+		return call_user_func_array(array($s, 'toLowerCase'), $p);
+	}
+}
+
+function templo_toUpperCase($s, $p) {
+	if(is_string($s)) {
+		return strtoupper($s);
+	} else {
+		return call_user_func_array(array($s, 'toUpperCase'), $p);
+	}
+}
+
+function templo_toString($s, $p) {
+	if(is_string($s)) {
+		return $s;
+	} else if(is_array($s)) {
+		return '['.join(', ',$s).']';
+	} else {
+		return call_user_func_array(array($s, 'toString'), $p);
+	}
+}
+
+function templo_is_true($v) { return $v || $v === ''; }
+
+function templo_string($s) {
+	if($s === true)
+		return 'true';
+	else if($s === false)
+		return 'false';
+	else if($s === 0)
+		return '0';
+	else if($s === null)
+		return 'null';
+	else if(is_array($s)) {
+		return htmlspecialchars('['.join(', ',$s).']');
+	} else if(is_object($s))
+		if(method_exists($s, 'toString'))
+			return htmlspecialchars($s->toString());
+		else
+			return htmlspecialchars(''.$s);
+	else
+		return htmlspecialchars($s);
+}
+
+function templo_repeater($it) {
+	if(is_array($it))
+		return new templo_repeater_array($it);
+	else
+		return new templo_repeater_decorator($it);
+}
+
+class templo_repeater_array {
+	var $arr;
+	var $index = -1;
+	var $number = 0;
+	var $odd = false;
+	var $even = true;
+	var $first = true;
+	var $last = false;
+	var $size = null;
+
+	function __construct($arr) {
+		$this->arr = $arr;
+		$this->size = count($arr);
+	}
+
+	function hasNext() {
+		return $this->index+1 < $this->size;
+	}
+
+	function next() {
+		$this->index++;
+		$this->number++;
+		$this->odd = !$this->odd;
+		$this->even = !$this->even;
+		$this->first = $this->index == 0;
+		$this->last = $this->size == $this->number;
+		return $this->arr[$this->index];
+	}
+}
+
+class templo_repeater_decorator {
+	var $it;
+	var $index = -1;
+	var $number = 0;
+	var $odd = false;
+	var $even = true;
+	var $first = true;
+	var $last = false;
+	var $size = null;
+	function __construct($it) {
+		if(isset($it->length)) {
+			$this->size = $it->length;
+		} else if(method_exists($it, 'get_length')) {
+			$this->size = $it->get_length();
+		} else if(method_exists($it, 'size')) {
+			$this->size = $it->size();
+		}
+		if(method_exists($it, 'iterator'))
+			$this->it = $it->iterator();
+		else
+			$this->it = $it;
+	}
+
+	function hasNext() {
+		return $this->it->hasNext();
+	}
+
+	function next() {
+		$this->index++;
+		$this->number++;
+		$this->odd = !$this->odd;
+		$this->even = !$this->even;
+		$this->first = $this->index == 0;
+		$this->last = $this->size == $this->number;
+		return $this->it->next();
+	}
+}
+");
+	}
+}
 #end

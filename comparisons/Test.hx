@@ -57,8 +57,90 @@ class Test {
 		}, {
 			name : "cond-compare-num", test : "compare.mtt", macros : null,
 			context : { value : 1 }
+		}, {
+			name : "attr-fill", test : "attr.mtt", macros : null,
+			context : { alttext : "my image", ischecked : true }
+		}, {
+			name : "attr-empty", test : "attr.mtt", macros : null,
+			context : { alttext : null, ischecked : false }
+		}, {
+			name : "loop-empty", test : "loop.mtt", macros : null,
+			context : { items : [] }
+		}, {
+			name : "loop-items", test : "loop.mtt", macros : null,
+			context : { items : ["a", "b", "c"] }
+		}, {
+			name : "loop-list", test : "loop.mtt", macros : null,
+			context : { items : createList() }
+		}, {
+			name : "loop-iterator", test : "loop.mtt", macros : null,
+			context : { items : {
+				index : 0,
+				len : 3,
+				hasNext : function() {
+					return untyped this.index < this.len;
+				},
+				next : function() {
+					untyped this.index++;
+					return untyped this.index;
+				}
+			}}
+		}, {
+			name : "set-numbers", test : "set.mtt", macros : null,
+			context : { numbers : [0,1,2,4,8] }
+		}, {
+			name : "object-anonym", test : "object.mtt", macros : null,
+			context : {
+				f : function() { return "haxe"; },
+				a : "aaa",
+				ob : {
+					f : function() { return "haxe"; },
+					a : "aaa"
+				}
+			}
+		}, {
+			name : "object-instance", test : "object.mtt", macros : null,
+			context : new Sample()
+		}, {
+			name : "fill", test : "fill.mtt", macros : null,
+			context : { content : "haXe&egrave;", num : 0 }
+		}, {
+			name : "fill-nested", test : "fill2.mtt", macros : null,
+			context : { content : "haXe&egrave;", num : 0 }
+		}, {
+			name : "includer-includes", test : "includer.mtt", macros : null,
+			context : { content : "haXe&egrave;", title : "T&egrave;mplo" }
+		}, {
+			name : "main-wrapped", test : "main.mtt", macros : null,
+			context : { content : "haXe&egrave;", title : "T&egrave;mplo" }
+		}, {
+			name : "macros", test : "test-macros.mtt", macros : "macros.mtt",
+			context : {
+				user : {
+					name : "haXe",
+					lastLogDate : new Date(2008,0,1,0,0,0)
+				},
+				date : new Date(2008,0,1,0,0,0)
+			}
+		}, {
+			name : "macros-omonym", test : "test-macros.mtt", macros : "omonym-macros.mtt",
+			context : {
+				user : {
+					name : "haXe",
+					lastLogDate : new Date(2008,0,1,0,0,0)
+				},
+				date : new Date(2008,0,1,0,0,0)
+			}
 		}
 	];
+
+	static function createList() {
+		var list = new List();
+		list.add("a");
+		list.add("b");
+		list.add("c");
+		return list;
+	}
 
 	public static function main() {
 		var base = Sys.getCwd();
@@ -73,7 +155,7 @@ class Test {
 	static function cleanCache() {
 		var files = FileSystem.readDirectory(Loader.TMP_DIR);
 		for(file in files) {
-			if(file == '.' || file == '..') continue;
+			if(file == '.' || file == '..' || FileSystem.isDirectory(Loader.TMP_DIR+file)) continue;
 			FileSystem.deleteFile(Loader.TMP_DIR+file);
 		}
 	}
@@ -86,11 +168,11 @@ class Test {
 			var nfile = "results/neko/"+test.name+".txt";
 			var pfile = "results/php/"+test.name+".txt";
 			if(!FileSystem.exists(nfile)) {
-				trace("Unable to compare '" + test.name + "' because the Neko version is missing");
+				trace("Unable to compare '" + test.name + "', Neko version is missing");
 				continue;
 			}
 			if(!FileSystem.exists(pfile)) {
-				trace("Unable to compare '" + test.name + "' because the PHP version is missing");
+				trace("Unable to compare '" + test.name + "', PHP version is missing");
 				continue;
 			}
 			var n = File.getContent(nfile);
@@ -113,4 +195,14 @@ class Test {
 			f.close();
 		}
 	}
+}
+
+class Sample {
+	public var a : String;
+	public var ob : Sample;
+	public function new() {
+		a = "aaa";
+		ob = this;
+	}
+	public function f() { return "haxe"; }
 }

@@ -1,0 +1,17 @@
+::set sum = 0::
+::set inc1 = 0::
+::set inc2 = 0::
+::set dec1 = 0::
+::set dec2 = 0::
+::foreach num numbers::
+	::set sum = sum + num::
+	::inc1++::
+	::++inc2::
+	::dec1++::
+	::++dec2::
+::end::
+sum: ::sum::
+inc1: ::inc1::
+inc2: ::inc2::
+dec1: ::dec1::
+dec2: ::dec2::

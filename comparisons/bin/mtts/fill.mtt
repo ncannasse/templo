@@ -1,0 +1,11 @@
+::fill fragment::
+<div>::content::</div>
+::num = num + 1::
+::num::
+::end::
+
+::raw fragment::
+::fragment::
+::raw fragment::
+::fragment::
+num: ::num::

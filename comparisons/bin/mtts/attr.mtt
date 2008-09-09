@@ -1,0 +1,2 @@
+<img ::attr alt alttext::::attr title alttext:: src="image.png"/>
+<input type="checkbox" name="in" ::attr checked ischecked::/>

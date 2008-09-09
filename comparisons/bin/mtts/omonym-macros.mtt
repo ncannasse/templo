@@ -1,0 +1,13 @@
+<macros>
+	<macro name="userView(user)">
+		::user.name::
+	</macro>
+
+	<macro name="date(d)">::d.getFullYear()::</macro>
+
+	<macro name="foo(x,y,z)">
+		::z::::y::::x::
+	</macro>
+
+	<macro name="onclick(url)" clickme="http://::url::"/>
+</macros>

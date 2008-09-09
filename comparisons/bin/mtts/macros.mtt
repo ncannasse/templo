@@ -1,0 +1,18 @@
+<macros>
+	<!-- shows a user -->
+	<macro name="userView(user)">
+		<div id="user">
+			<div class="name">::user.name::</div>
+			<div class="lastLog">::user.lastLogDate::</div>
+		</div>
+	</macro>
+
+	<!-- presents a date without hours -->
+	<macro name="date(d)">::d.toString().substr(0,10)::</macro>
+
+	<macro name="foo(x,y,z)">
+		<a href="::x::">::y::</a>::z::
+	</macro>
+
+	<macro name="onclick(url)" onclick="::url::"/>
+</macros>

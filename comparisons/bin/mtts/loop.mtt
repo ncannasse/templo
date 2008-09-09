@@ -1,0 +1,9 @@
+<ul>
+	::foreach item items::
+	<li>::item::</li>
+	::end::
+</ul>
+
+<ul>
+	<li ::repeat item items::>::item::, ::repeat.item.index::, ::repeat.item.number::, ::repeat.item.odd::, ::repeat.item.even::, ::repeat.item.first::, ::repeat.item.last::, ::repeat.item.size::</li>	
+</ul>
