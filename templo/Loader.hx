@@ -498,7 +498,7 @@ function templo_lastIndexOf($s, $p) {
 	}
 }
 
-function templo_lenght($v) {
+function templo_length($v) {
 	if(is_string($v)) {
 		return str_len($v);
 	} else if(is_array($v)) {
