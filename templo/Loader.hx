@@ -228,7 +228,7 @@ class Loader {
 
 	public function execute( ctx : Dynamic ) : String {
 		if(ctx == null) ctx = {};
-
+		cache_macro_functions = new Hash();
 
 		if(MACROS != null && MACROS != '') {
 			var macrosfiles = MACROS.split(' ');
@@ -280,19 +280,24 @@ class Loader {
 
 	function getMacroPrefixes( paths : Array<String> ) : Array<String> {
 		var prefixes = [];
+		var re = new EReg("[/:.\\-]+", "g");
 		for(path in paths) {
 			if( path.charAt(0) == "/" ) path = path.substr(1);
-			prefixes.push((~/[\/:.\\-]+/).replace(path, "__"));
+			prefixes.push(re.replace(path, "__"));
 		}
 		return prefixes;
 	}
 
-
+	var cache_macro_functions : Hash<String>;
 	var macrosprefixes : Array<String>;
 	function macro(name : String, args : Dynamic) {
+		if(cache_macro_functions.exists(name))
+			return untyped __call__("call_user_func_array", cache_macro_functions.get(name), args);
+
 		for(pre in macrosprefixes) {
 			var n = pre+'_'+name;
 			if(untyped __call__("function_exists", n)) {
+				cache_macro_functions.set(name, n);
 				return untyped __call__("call_user_func_array", n, args);
 			}
 		}

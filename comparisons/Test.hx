@@ -136,6 +136,11 @@ class Test {
 			context : {
 				name : 'PHP'
 			}
+		} , {
+			name : 'nested-templates', test : 'nested.mtt', macros : null,
+			context : {
+				content : 'haXe'
+			}
 		}
 	];
 

@@ -5,6 +5,7 @@
     <dir path="mtts">
       <file path="bin\mtts\attr.mtt" />
       <file path="bin\mtts\compare.mtt" />
+      <file path="bin\mtts\container.mtt" />
       <file path="bin\mtts\emptymacros.mtt" />
       <file path="bin\mtts\emptytest.mtt" />
       <file path="bin\mtts\fill.mtt" />
@@ -12,10 +13,12 @@
       <file path="bin\mtts\ifelse.mtt" />
       <file path="bin\mtts\included.mtt" />
       <file path="bin\mtts\includer.mtt" />
+      <file path="bin\mtts\inlined-macro.mtt" />
       <file path="bin\mtts\layout.mtt" />
       <file path="bin\mtts\loop.mtt" />
       <file path="bin\mtts\macros.mtt" />
       <file path="bin\mtts\main.mtt" />
+      <file path="bin\mtts\nested.mtt" />
       <file path="bin\mtts\object.mtt" />
       <file path="bin\mtts\omonym-macros.mtt" />
       <file path="bin\mtts\set.mtt" />
