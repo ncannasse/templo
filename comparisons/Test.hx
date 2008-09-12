@@ -136,10 +136,16 @@ class Test {
 			context : {
 				name : 'PHP'
 			}
-		} , {
+		}, {
 			name : 'nested-templates', test : 'nested.mtt', macros : null,
 			context : {
 				content : 'haXe'
+			}
+		} , {
+			name : 'sample-xml', test : 'content.xml', macros : null,
+			context : {
+				title: 'Lorem Ipsum',
+				text: 'Lorem ipsum dolor sit amet...'
 			}
 		}
 	];

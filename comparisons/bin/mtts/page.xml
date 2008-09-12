@@ -1,0 +1,8 @@
+﻿<html>
+	<body>
+		::use 'menu.xml'::::end::
+		<div id="content">
+			::raw __content__::
+		</div>
+	</body>
+</html>

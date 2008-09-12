@@ -1,0 +1,5 @@
+<!-- A -->
+::use 'layout.mtt'::
+::__content__::
+::end::
+<!-- B -->

@@ -243,6 +243,7 @@ class Loader {
 			macrosprefixes = getMacroPrefixes([templatename]);
 		}
 
+		var container = null;
 		bufferReset();
 		bufferCreate();
 		untyped __call__("require", file);
@@ -250,8 +251,10 @@ class Loader {
 	}
 
 	var b : Array<String>;
+	var contents : Array<String>;
 	function bufferReset() {
 		b = [];
+		contents = [];
 	}
 
 	function bufferCreate() {
@@ -290,7 +293,7 @@ class Loader {
 
 	var cache_macro_functions : Hash<String>;
 	var macrosprefixes : Array<String>;
-	function macro(name : String, args : Dynamic) {
+	function macro(name : String, args : Dynamic, container : String) {
 		if(cache_macro_functions.exists(name))
 			return untyped __call__("call_user_func_array", cache_macro_functions.get(name), args);
 
@@ -304,7 +307,7 @@ class Loader {
 		throw "invalid macro call to " + name;
 	}
 
-	function includeTemplate( file:String, ctx : Dynamic ) {
+	function includeTemplate( file : String, container : String, ctx : Dynamic ) {
 		if( !OPTIMIZED )
 			compileTemplate(file);
 		untyped __call__("require", tmpFileId(file));

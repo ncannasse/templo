@@ -126,7 +126,7 @@ function php(ctx,s) {
 }
 
 function temp(ctx) {
-	var tmp = "$t"+ctx.temp_counter;
+	var tmp = "$t_"+ctx.container+"_"+ctx.temp_counter;
 	ctx.temp_counter := ctx.temp_counter+1;
 	tmp;
 }
@@ -158,6 +158,7 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "true" -> php ctx "true"
 	| VIdent "false" -> php ctx "false"
 	| VIdent "null" -> php ctx "null"
+	| VIdent "__content__" -> php ctx "$this->contents[$container]"
 	| VIdent i -> php(ctx,var_ctx(ctx)+i)
 	| VVar v -> php(ctx,var_ctx(ctx)+v)
 	| VIf (e1,e2,e3) -> 
@@ -330,7 +331,7 @@ function gen_const_expr(ctx,e) {
 		php(ctx, t+" = ");
 		gen_ast_expr(ctx,file);
 		php(ctx, ";");
-		open_block(ctx,var_ctx(ctx)+"__content__ = $this->bufferPop(); $this->includeTemplate("+t+", $ctx);");
+		open_block(ctx,"$this->contents['"+ctx.container+"'] = $this->bufferPop(); $this->includeTemplate("+t+", '"+ctx.container+"', $ctx);");
 	| CSet (v,e) ->
 		php(ctx,var_ctx(ctx)+v+" = ");
 		gen_ast_expr(ctx,e);
@@ -366,7 +367,7 @@ function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
 	php(ctx, "$this->macro('" + name + "', array(");
 	generate_element_params ctx params;
-	php(ctx, "));");
+	php(ctx, "), '"+ctx.container+"');");
 	ctx.call_level := ctx.call_level-1;
 }
 

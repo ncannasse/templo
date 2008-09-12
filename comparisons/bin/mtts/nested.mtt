@@ -1,0 +1,18 @@
+<!-- before -->
+::use 'container.mtt'::
+<div>::content::</div>
+::end::
+<!-- after -->
+
+<!-- before -->
+::use 'container.mtt'::
+<div>
+<!-- before -->
+::use 'layout.mtt'::
+<h1>::title::</h1>
+<div>::content::</div>
+::end::
+<!-- after -->
+</div>
+::end::
+<!-- after -->
