@@ -1,0 +1,5 @@
+<macros>
+	<macro name="fContext(v)">
+		::name:: + ::v::
+	</macro>
+</macros>

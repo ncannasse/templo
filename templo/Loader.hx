@@ -293,7 +293,7 @@ class Loader {
 
 	var cache_macro_functions : Hash<String>;
 	var macrosprefixes : Array<String>;
-	function macro(name : String, args : Dynamic, container : String) {
+	function macro(name : String, args : Dynamic) {
 		if(cache_macro_functions.exists(name))
 			return untyped __call__("call_user_func_array", cache_macro_functions.get(name), args);
 

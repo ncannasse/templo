@@ -26,6 +26,7 @@ type context {
 	mutable call_level : int;
 	mutable inmacro : bool;
 	mutable container : string;
+	mutable macro_locals : string list;
 }
 
 function escape_single_quote(s) {
@@ -79,11 +80,11 @@ function php_op(o) {
 	}
 }
 
-function var_ctx(ctx) {
-	if ctx.inmacro then
-		"$"
+function var_ctx(ctx,v) {
+	if List.mem v ctx.macro_locals then
+		"$" + v
 	else
-		"$ctx->";
+		"$ctx->" + v;
 }
 
 function cdata(ctx,s) {
@@ -159,8 +160,8 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "false" -> php ctx "false"
 	| VIdent "null" -> php ctx "null"
 	| VIdent "__content__" -> php ctx "$this->contents[$container]"
-	| VIdent i -> php(ctx,var_ctx(ctx)+i)
-	| VVar v -> php(ctx,var_ctx(ctx)+v)
+	| VIdent i -> php(ctx,var_ctx(ctx,i))
+	| VVar v -> php(ctx,var_ctx(ctx,v))
 	| VIf (e1,e2,e3) -> 
 		gen_ast_expr(ctx, e1);
 		php(ctx," ? ");
@@ -289,7 +290,7 @@ function gen_foreach(ctx,v,e) {
 	gen_ast_expr(ctx,e);
 	php(ctx, "); ");
 	php(ctx, " while("+repeater(v)+"->hasNext()): ");
-	php(ctx, var_ctx(ctx) + v + " = " + repeater(v) + "->next(); ");
+	php(ctx, var_ctx(ctx,v) + " = " + repeater(v) + "->next(); ");
 	open_block(ctx,"endwhile;");
 }
 
@@ -324,7 +325,7 @@ function gen_const_expr(ctx,e) {
 		gen_foreach(ctx,v,e);
 	| CFill v ->
 		php(ctx, "$this->bufferCreate();");
-		open_block(ctx,var_ctx(ctx)+v+" = $this->bufferPop();");
+		open_block(ctx,var_ctx(ctx,v)+" = $this->bufferPop();");
 	| CUse file ->
 		var t = temp(ctx);
 		php(ctx, "$this->bufferCreate();");
@@ -333,7 +334,7 @@ function gen_const_expr(ctx,e) {
 		php(ctx, ";");
 		open_block(ctx,"$this->contents['"+ctx.container+"'] = $this->bufferPop(); $this->includeTemplate("+t+", '"+ctx.container+"', $ctx);");
 	| CSet (v,e) ->
-		php(ctx,var_ctx(ctx)+v+" = ");
+		php(ctx,var_ctx(ctx,v)+" = ");
 		gen_ast_expr(ctx,e);
 		php(ctx,";");
 	| CEval e ->
@@ -350,37 +351,33 @@ function rec generate_attr(ctx,p,(n,content)) {
 	cdata(ctx, "\"")
 }
 
-function rec gen_var_params(ctx,sl) {
+function rec gen_macro_params(ctx,sl) {
 	match sl {
 	| [] -> 
-		()
-	| s :: [] ->
-		php(ctx,"$"+s);
+		php(ctx, "$container, $ctx");
 	| s :: sl ->
-		php(ctx,"$"+s);
-		php(ctx,", ");
-		gen_var_params(ctx,sl);
+		ctx.macro_locals := s :: ctx.macro_locals;
+		php(ctx,"$"+s+", ");
+		gen_macro_params(ctx,sl);
 	}
 }
 
 function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
 	php(ctx, "$this->macro('" + name + "', array(");
-	generate_element_params ctx params;
-	php(ctx, "), '"+ctx.container+"');");
+	gen_macro_args ctx params;
+	php(ctx, "));");
 	ctx.call_level := ctx.call_level-1;
 }
 
-function rec generate_element_params(ctx,el) {
+function rec gen_macro_args(ctx,el) {
 	match el {
 	| [] -> 
-		()
-	| e :: [] ->
-		List.iter generate_element(ctx) e;
+		php(ctx, "'"+ctx.container + "', $ctx");
 	| e :: el ->
 		List.iter generate_element(ctx) e;
 		php(ctx,", ");
-		generate_element_params(ctx,el);
+		gen_macro_args(ctx,el);
 	}
 }
 
@@ -433,7 +430,7 @@ function rec generate_element(ctx,e) {
 		php(ctx, "");
 		ctx.inmacro := true;
 		php(ctx, "\nfunction " + ctx.container + "_" + m.m_name + "(");
-		gen_var_params ctx m.m_args;
+		gen_macro_params ctx m.m_args;
 		php(ctx, ") {\n");
 		open_block(ctx, "\n}\n");
 		match m.m_content {
@@ -444,6 +441,7 @@ function rec generate_element(ctx,e) {
 		};		
 		close_block(ctx);
 		ctx.inmacro := false;
+		ctx.macro_locals := [];
 	| XComment c ->
 		cdata(ctx, c)
 	| XData d ->
@@ -475,6 +473,7 @@ function generate_file(output,(file,content,imports)) {
 		call_level = 0;
 		inmacro = false;
 		container = normalize_name(file);
+		macro_locals = [];
 	};
 	List.iter generate_template(ctx) content;
 	cdata(ctx,""); // closes opened php when required
