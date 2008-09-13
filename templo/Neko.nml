@@ -101,10 +101,7 @@ function rec ast_expr(e) {
 	| VField ((VIdent "repeat",_),k) ->
 		EConst Ident("repeat@" + k)
 	| VField (e,v) ->
-		if String.get v 0 == '_' then
-			ECall (EField ast_expr(e) ("get"+v),p) []
-		else
-			EField ast_expr(e) v
+		EField ast_expr(e) v
  	| VArray (e1,e2) ->
 		EArray ast_expr(e1) ast_expr(e2)
 	| VArrayDecl el ->

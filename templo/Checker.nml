@@ -138,7 +138,11 @@ function check_expr(chk,e) {
 		| VUnop (op,prefix,e) -> VUnop op prefix loop(e)
 		| VCall (e,el) -> VCall loop(e) (List.map loop el)
 		| VParent e -> VParent loop(e)
-		| VField (e,f) -> VField loop(e) f
+		| VField (e,f) -> 
+			if String.get f 0 == '_' then
+				VCall (VField loop(e) ("get"+f),snd e) []
+			else	
+				VField loop(e) f
 		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
 		| VBool e -> VBool loop(e)
