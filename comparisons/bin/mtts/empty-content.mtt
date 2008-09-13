@@ -1,0 +1,5 @@
+::if __content__ == null::
+<p>Welcome to the administration interface of your hxBlog.</p>
+::else::
+::raw __content__::
+::end::

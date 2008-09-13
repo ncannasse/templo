@@ -251,10 +251,10 @@ class Loader {
 	}
 
 	var b : Array<String>;
-	var contents : Array<String>;
+	var content : String;
 	function bufferReset() {
 		b = [];
-		contents = [];
+		content = null;
 	}
 
 	function bufferCreate() {
@@ -308,9 +308,12 @@ class Loader {
 	}
 
 	function includeTemplate( file : String, container : String, ctx : Dynamic ) {
+		var old_content = content;
+		content = bufferPop();
 		if( !OPTIMIZED )
 			compileTemplate(file);
 		untyped __call__("require", tmpFileId(file));
+		 content = old_content;
 	}
 
 	function compileTemplate( path:String ) : Void {

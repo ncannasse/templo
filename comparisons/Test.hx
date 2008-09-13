@@ -152,6 +152,9 @@ class Test {
 				title: 'Lorem Ipsum',
 				text: 'Lorem ipsum dolor sit amet...'
 			}
+		}, {
+			name : 'empty-content', test : 'empty-content.mtt', macros : null,
+			context : {}
 		}
 	];
 
