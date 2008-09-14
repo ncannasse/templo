@@ -95,7 +95,7 @@ function cdata(ctx,s) {
 		if ctx.inphp then {
 			Buffer.add(ctx.buffer," ?>");
 			if String.length s > 1 then {
-				if String.get s 0 == '\r' && String.get s 0 == '\n' then
+				if String.get s 0 == '\r' && String.get s 1 == '\n' then
 					Buffer.add(ctx.buffer,"\r\n")
 				else if String.get s 0 == '\r' then
 					Buffer.add(ctx.buffer,"\r")
