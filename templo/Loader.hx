@@ -382,7 +382,7 @@ function templo_pop($a, $p) {
 
 function templo_reverse($a, $p) {
 	if(is_array($a)) {
-		return array_sort($a);
+		return rsort($a);
 	} else {
 		return call_user_func_array(array($s, 'reverse'), $p);
 	}
