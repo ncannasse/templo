@@ -135,7 +135,7 @@ function repeater(v) {
 }
 
 function rec gen_indirect_method(ctx,name,e,el) {
-	php(ctx,"templo_"+name+"(");
+	php(ctx,"_hxtemplo_"+name+"(");
 	ctx.call_level := ctx.call_level + 1;
 	gen_ast_expr(ctx,e);
 	php(ctx,", array(");
@@ -172,9 +172,18 @@ function rec gen_ast_expr(ctx,e) {
 			php(ctx,"null");
 		});
 	| VBinop (op,e1,e2) -> 
-		gen_ast_expr(ctx,e1);
-		php(ctx," "+php_op(op)+" ");
-		gen_ast_expr(ctx,e2);
+		match op {
+		| OpAdd ->
+			php(ctx,"_hxtemplo_add(");
+			gen_ast_expr(ctx,e1);
+			php(ctx,",");
+			gen_ast_expr(ctx,e2);
+			php(ctx,")");
+		| _ ->
+			gen_ast_expr(ctx,e1);
+			php(ctx," "+php_op(op)+" ");
+			gen_ast_expr(ctx,e2);
+		}
 	| VUnop (op,pref,e) ->
 		match op {
 		| Increment ->
@@ -227,7 +236,7 @@ function rec gen_ast_expr(ctx,e) {
 	| VField (e,v) -> 
 		match v {
 		| "length" -> 
-			php(ctx,"templo_length(");
+			php(ctx,"_hxtemplo_length(");
 			gen_ast_expr(ctx,e);
 			php(ctx,")");
 		| v ->
@@ -245,7 +254,7 @@ function rec gen_ast_expr(ctx,e) {
 		php(ctx,")");
 	| VBool e ->
 		//false , null and 0
-		php(ctx,"templo_is_true(");
+		php(ctx,"_hxtemplo_is_true(");
 		match fst e {
 		| VParent e ->
 			gen_ast_expr(ctx,e);
@@ -284,7 +293,7 @@ function close_block(ctx) {
 }
 
 function gen_foreach(ctx,v,e) {
-	php(ctx, repeater(v)+" = templo_repeater(");
+	php(ctx, repeater(v)+" = _hxtemplo_repeater(");
 	gen_ast_expr(ctx,e);
 	php(ctx, "); ");
 	php(ctx, " while("+repeater(v)+"->hasNext()): ");
@@ -297,7 +306,7 @@ function gen_const_expr(ctx,e) {
 	| CValue e ->
 		if ctx.call_level == 0 then 
 			php(ctx, "echo ");
-		php(ctx, "templo_string(");
+		php(ctx, "_hxtemplo_string(");
 		gen_ast_expr(ctx,e);
 		php(ctx, ")"); // TODO: check this is consistent with neko for quotes and char replacements
 		if ctx.call_level == 0 then 
@@ -408,7 +417,7 @@ function rec generate_element(ctx,e) {
 			var etmp = temp ctx;
 			php(ctx,etmp+" = ");
 			gen_ast_expr(ctx,e);
-			php(ctx,"; if(templo_is_true("+etmp+"))");
+			php(ctx,"; if(_hxtemplo_is_true("+etmp+"))");
 			php(ctx," echo ' " + attr + "=\"'." + etmp + ".'\"'; ");
 		}) n.n_attrs;
 

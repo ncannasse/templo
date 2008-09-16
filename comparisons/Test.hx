@@ -11,6 +11,22 @@ import php.Sys;
 #end
 
 class Test {
+	static function anonymIterator() {
+		var me : Dynamic = null;
+		me = {
+			index : 0,
+			len : 3,
+			hasNext : function() {
+				return me.index < me.len;
+			},
+			next : function() {
+				me.index++;
+				return me.index;
+			}
+		};
+		return me;
+	}
+
 	static var tests = [
 		{
 			name : "empty", test : "emptytest.mtt", macros : "emptymacros.mtt",
@@ -74,17 +90,7 @@ class Test {
 			context : { items : createList() }
 		}, {
 			name : "loop-iterator", test : "loop.mtt", macros : null,
-			context : { items : {
-				index : 0,
-				len : 3,
-				hasNext : function() {
-					return untyped this.index < this.len;
-				},
-				next : function() {
-					untyped this.index++;
-					return untyped this.index;
-				}
-			}}
+			context : { items : anonymIterator() }
 		}, {
 			name : "set-numbers", test : "set.mtt", macros : null,
 			context : { numbers : [0,1,2,4,8] }
@@ -155,6 +161,15 @@ class Test {
 		}, {
 			name : 'empty-content', test : 'empty-content.mtt', macros : null,
 			context : {}
+		}, {
+			name : 'add-concat', test : 'add-concat.mtt', macros : null,
+			context : {
+				n1   : 5.1,
+				n2   : 0.1,
+				s1   : 'a',
+				s2   : 'b',
+				nihl : null
+			}
 		}
 	];
 

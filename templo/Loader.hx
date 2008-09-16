@@ -347,8 +347,8 @@ class Loader {
 
 	static function __init__() {
 		untyped __php__("
-
-function templo_push($a, $p) {
+// TODO: most of these functions should be passed by reference. Check consequences.
+function _hxtemplo_push($a, $p) {
 	if(is_array($a)) {
 		return array_push($a, $p[0]);
 	} else {
@@ -356,7 +356,7 @@ function templo_push($a, $p) {
 	}
 }
 
-function templo_concat($a, $p) {
+function _hxtemplo_concat($a, $p) {
 	if(is_array($a)) {
 		return array_merge($a, $p[0]);
 	} else {
@@ -364,7 +364,7 @@ function templo_concat($a, $p) {
 	}
 }
 
-function templo_join($a, $p) {
+function _hxtemplo_join($a, $p) {
 	if(is_array($a)) {
 		return join($p[0], $a);
 	} else {
@@ -372,7 +372,7 @@ function templo_join($a, $p) {
 	}
 }
 
-function templo_pop($a, $p) {
+function _hxtemplo_pop($a, $p) {
 	if(is_array($a)) {
 		return array_pop($a);
 	} else {
@@ -380,15 +380,15 @@ function templo_pop($a, $p) {
 	}
 }
 
-function templo_reverse($a, $p) {
+function _hxtemplo_reverse($a, $p) {
 	if(is_array($a)) {
-		return rsort($a);
+		return array_reverse($a);
 	} else {
 		return call_user_func_array(array($s, 'reverse'), $p);
 	}
 }
 
-function templo_shift($a, $p) {
+function _hxtemplo_shift($a, $p) {
 	if(is_array($a)) {
 		return array_shift($a);
 	} else {
@@ -397,7 +397,7 @@ function templo_shift($a, $p) {
 }
 
 
-function templo_slice($a, $p) {
+function _hxtemplo_slice($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_slice($a, $p[0], count($p) > 1 ? $p[1] : null);
 	} else {
@@ -405,7 +405,7 @@ function templo_slice($a, $p) {
 	}
 }
 
-function templo_sort($a, $p) {
+function _hxtemplo_sort($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_sort($a, $p[0]);
 	} else {
@@ -413,7 +413,7 @@ function templo_sort($a, $p) {
 	}
 }
 
-function templo_splice($a, $p) {
+function _hxtemplo_splice($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_splice($a, $p[0], $p[1]);
 	} else {
@@ -421,7 +421,7 @@ function templo_splice($a, $p) {
 	}
 }
 
-function templo_copy($a, $p) {
+function _hxtemplo_copy($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_copy($a);
 	} else {
@@ -429,7 +429,7 @@ function templo_copy($a, $p) {
 	}
 }
 
-function templo_unshift($a, $p) {
+function _hxtemplo_unshift($a, $p) {
 	if(is_array($a)) {
 		return array_unshift($a);
 	} else {
@@ -437,7 +437,7 @@ function templo_unshift($a, $p) {
 	}
 }
 
-function templo_insert($a, $p) {
+function _hxtemplo_insert($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_insert($a, $p[0], $p[1]);
 	} else {
@@ -445,7 +445,7 @@ function templo_insert($a, $p) {
 	}
 }
 
-function templo_remove($a, $p) {
+function _hxtemplo_remove($a, $p) {
 	if(is_array($a)) {
 		return php_Boot::__array_remove($a, $p[0]);
 	} else {
@@ -453,7 +453,7 @@ function templo_remove($a, $p) {
 	}
 }
 
-function templo_iterator($a, $p) {
+function _hxtemplo_iterator($a, $p) {
 	if(is_array($a)) {
 		return new HArrayIterator($a);
 	} else {
@@ -461,7 +461,7 @@ function templo_iterator($a, $p) {
 	}
 }
 
-function templo_substr($s, $p) {
+function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
 		return php_Boot::__substr($s, $p[0], count($p) > 1 ? $p[1] : null);
 	} else {
@@ -469,7 +469,7 @@ function templo_substr($s, $p) {
 	}
 }
 
-function templo_charAt($s, $p) {
+function _hxtemplo_charAt($s, $p) {
 	if(is_string($s)) {
 		return substr($s, $p[0], 1);
 	} else {
@@ -477,7 +477,7 @@ function templo_charAt($s, $p) {
 	}
 }
 
-function templo_cca($s, $p) {
+function _hxtemplo_cca($s, $p) {
 	if(is_string($s)) {
 		return ord($s{$p[0]});
 	} else {
@@ -485,7 +485,7 @@ function templo_cca($s, $p) {
 	}
 }
 
-function templo_charCodeAt($s, $p) {
+function _hxtemplo_charCodeAt($s, $p) {
 	if(is_string($s)) {
 		return php_Boot::__char_code_at($s, $p[0]);
 	} else {
@@ -493,7 +493,7 @@ function templo_charCodeAt($s, $p) {
 	}
 }
 
-function templo_indexOf($s, $p) {
+function _hxtemplo_indexOf($s, $p) {
 	if(is_string($s)) {
 		return php_Boot::__index_of($s, $p[0]);
 	} else {
@@ -501,7 +501,7 @@ function templo_indexOf($s, $p) {
 	}
 }
 
-function templo_lastIndexOf($s, $p) {
+function _hxtemplo_lastIndexOf($s, $p) {
 	if(is_string($s)) {
 		return php_Boot::__last_index_of($s, $p[0]);
 	} else {
@@ -509,7 +509,7 @@ function templo_lastIndexOf($s, $p) {
 	}
 }
 
-function templo_length($v) {
+function _hxtemplo_length($v) {
 	if(is_string($v)) {
 		return str_len($v);
 	} else if(is_array($v)) {
@@ -519,7 +519,7 @@ function templo_length($v) {
 	}
 }
 
-function templo_split($s, $p) {
+function _hxtemplo_split($s, $p) {
 	if(is_string($s)) {
 		return explode($s, $p[0]);
 	} else {
@@ -527,7 +527,7 @@ function templo_split($s, $p) {
 	}
 }
 
-function templo_toLowerCase($s, $p) {
+function _hxtemplo_toLowerCase($s, $p) {
 	if(is_string($s)) {
 		return strtolower($s);
 	} else {
@@ -535,7 +535,7 @@ function templo_toLowerCase($s, $p) {
 	}
 }
 
-function templo_toUpperCase($s, $p) {
+function _hxtemplo_toUpperCase($s, $p) {
 	if(is_string($s)) {
 		return strtoupper($s);
 	} else {
@@ -543,7 +543,7 @@ function templo_toUpperCase($s, $p) {
 	}
 }
 
-function templo_toString($s, $p) {
+function _hxtemplo_toString($s, $p) {
 	if(is_string($s)) {
 		return $s;
 	} else if(is_array($s)) {
@@ -553,9 +553,9 @@ function templo_toString($s, $p) {
 	}
 }
 
-function templo_is_true($v) { return $v || $v === ''; }
+function _hxtemplo_is_true($v) { return $v || $v === ''; }
 
-function templo_string($s) {
+function _hxtemplo_string($s) {
 	if($s === true)
 		return 'true';
 	else if($s === false)
@@ -575,14 +575,23 @@ function templo_string($s) {
 		return htmlspecialchars($s);
 }
 
-function templo_repeater($it) {
+function _hxtemplo_repeater($it) {
 	if(is_array($it))
-		return new templo_repeater_array($it);
+		return new _hxtemplo_repeater_array($it);
 	else
-		return new templo_repeater_decorator($it);
+		return new _hxtemplo_repeater_decorator($it);
 }
 
-class templo_repeater_array {
+function _hxtemplo_add($v1, $v2) {
+	if(is_null($v1)) $v1 = 'null';
+	if(is_null($v2)) $v2 = 'null';
+
+	if(is_numeric($v1) && is_numeric($v2))
+		return $v1+$v2;
+	return $v1.$v2;
+}
+
+class _hxtemplo_repeater_array {
 	var $arr;
 	var $index = -1;
 	var $number = 0;
@@ -612,7 +621,7 @@ class templo_repeater_array {
 	}
 }
 
-class templo_repeater_decorator {
+class _hxtemplo_repeater_decorator {
 	var $it;
 	var $index = -1;
 	var $number = 0;

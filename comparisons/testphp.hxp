@@ -7,6 +7,7 @@
       <file path="bin\mtts\compare.mtt" />
       <file path="bin\mtts\container.mtt" />
       <file path="bin\mtts\content.xml" />
+      <file path="bin\mtts\empty-content.mtt" />
       <file path="bin\mtts\emptymacros.mtt" />
       <file path="bin\mtts\emptytest.mtt" />
       <file path="bin\mtts\fill.mtt" />
@@ -17,6 +18,7 @@
       <file path="bin\mtts\inlined-macro.mtt" />
       <file path="bin\mtts\layout.mtt" />
       <file path="bin\mtts\loop.mtt" />
+      <file path="bin\mtts\macro-context.mtt" />
       <file path="bin\mtts\macros.mtt" />
       <file path="bin\mtts\main.mtt" />
       <file path="bin\mtts\menu.xml" />
@@ -26,6 +28,7 @@
       <file path="bin\mtts\page.xml" />
       <file path="bin\mtts\set.mtt" />
       <file path="bin\mtts\simplevar.mtt" />
+      <file path="bin\mtts\test-macro-context.mtt" />
       <file path="bin\mtts\test-macros.mtt" />
       <file path="bin\mtts\test-omonym-macros.mtt" />
     </dir>
