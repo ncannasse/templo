@@ -244,10 +244,11 @@ function rec gen_ast_expr(ctx,e) {
 			php(ctx,"->"+v);
 		}
 	| VArray (e1,e2) ->
+		php(ctx,"_hxtemplo_array_get(");
 		gen_ast_expr(ctx,e1);
-		php(ctx,"[");
+		php(ctx,",");
 		gen_ast_expr(ctx,e2);
-		php(ctx,"]");
+		php(ctx,")");
 	| VArrayDecl el ->
 		php(ctx,"array(");
 		gen_ast_expr_params ctx el;

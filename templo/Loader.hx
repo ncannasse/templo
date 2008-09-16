@@ -521,7 +521,7 @@ function _hxtemplo_length($v) {
 
 function _hxtemplo_split($s, $p) {
 	if(is_string($s)) {
-		return explode($s, $p[0]);
+		return explode($p[0], $s);
 	} else {
 		return call_user_func_array(array($s, 'split'), $p);
 	}
@@ -589,6 +589,11 @@ function _hxtemplo_add($v1, $v2) {
 	if(is_numeric($v1) && is_numeric($v2))
 		return $v1+$v2;
 	return $v1.$v2;
+}
+
+function _hxtemplo_array_get($a, $i) {
+	if(!isset($a[$i])) return null;
+	return $a[$i];
 }
 
 class _hxtemplo_repeater_array {

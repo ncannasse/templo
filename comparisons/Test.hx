@@ -170,6 +170,12 @@ class Test {
 				s2   : 'b',
 				nihl : null
 			}
+		}, {
+			name : 'array-access', test : 'array-access.mtt', macros : null,
+			context : {
+				email : "neko@haxe.org",
+				arr   : ['a', 'b']
+			}
 		}
 	];
 
