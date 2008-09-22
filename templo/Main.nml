@@ -65,6 +65,8 @@ try {
 		("-xml",Args.Void (function() xml := true),": don't use XHTML checks");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
+	// remove all macros that are also in files
+	files := List.fold (function(acc,file) List.filter (function(f) f != file) acc) (*files) (*macros);
 	function is_xml(file) {
 		*xml || String.lowercase (Sys.extension file) == "xml"
 	}
