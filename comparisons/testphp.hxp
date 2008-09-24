@@ -3,6 +3,8 @@
   <output name="Neko" mode="neko" out="bin/index.n" class="Test" lib="" cmd="" main="True" debug="True">-cp ../</output>
   <files path="/">
     <dir path="mtts">
+      <file path="bin\mtts\add-concat.mtt" />
+      <file path="bin\mtts\array-access.mtt" />
       <file path="bin\mtts\attr.mtt" />
       <file path="bin\mtts\compare.mtt" />
       <file path="bin\mtts\container.mtt" />

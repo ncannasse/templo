@@ -399,7 +399,7 @@ function _hxtemplo_shift($a, $p) {
 
 function _hxtemplo_slice($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_slice($a, $p[0], count($p) > 1 ? $p[1] : null);
+		return _hx_array_slice($a, $p[0], count($p) > 1 ? $p[1] : null);
 	} else {
 		return call_user_func_array(array($s, 'slice'), $p);
 	}
@@ -407,7 +407,7 @@ function _hxtemplo_slice($a, $p) {
 
 function _hxtemplo_sort($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_sort($a, $p[0]);
+		return _hx_array_sort($a, $p[0]);
 	} else {
 		return call_user_func_array(array($s, 'sort'), $p);
 	}
@@ -415,7 +415,7 @@ function _hxtemplo_sort($a, $p) {
 
 function _hxtemplo_splice($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_splice($a, $p[0], $p[1]);
+		return _hx_array_splice($a, $p[0], $p[1]);
 	} else {
 		return call_user_func_array(array($s, 'splice'), $p);
 	}
@@ -423,7 +423,7 @@ function _hxtemplo_splice($a, $p) {
 
 function _hxtemplo_copy($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_copy($a);
+		return _hx_array_copy($a);
 	} else {
 		return call_user_func_array(array($s, 'copy'), $p);
 	}
@@ -439,7 +439,7 @@ function _hxtemplo_unshift($a, $p) {
 
 function _hxtemplo_insert($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_insert($a, $p[0], $p[1]);
+		return _hx_array_insert($a, $p[0], $p[1]);
 	} else {
 		return call_user_func_array(array($s, 'insert'), $p);
 	}
@@ -447,7 +447,7 @@ function _hxtemplo_insert($a, $p) {
 
 function _hxtemplo_remove($a, $p) {
 	if(is_array($a)) {
-		return php_Boot::__array_remove($a, $p[0]);
+		return _hx_array_remove($a, $p[0]);
 	} else {
 		return call_user_func_array(array($s, 'remove'), $p);
 	}
@@ -463,7 +463,7 @@ function _hxtemplo_iterator($a, $p) {
 
 function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
-		return php_Boot::__substr($s, $p[0], count($p) > 1 ? $p[1] : null);
+		return _hx_substr($s, $p[0], count($p) > 1 ? $p[1] : null);
 	} else {
 		return call_user_func_array(array($s, 'substr'), $p);
 	}
@@ -487,7 +487,7 @@ function _hxtemplo_cca($s, $p) {
 
 function _hxtemplo_charCodeAt($s, $p) {
 	if(is_string($s)) {
-		return php_Boot::__char_code_at($s, $p[0]);
+		return _hx_char_code_at($s, $p[0]);
 	} else {
 		return call_user_func_array(array($s, 'charCodeAt'), $p);
 	}
@@ -495,7 +495,7 @@ function _hxtemplo_charCodeAt($s, $p) {
 
 function _hxtemplo_indexOf($s, $p) {
 	if(is_string($s)) {
-		return php_Boot::__index_of($s, $p[0]);
+		return _hx_index_of($s, $p[0]);
 	} else {
 		return call_user_func_array(array($s, 'indexOf'), $p);
 	}
@@ -503,7 +503,7 @@ function _hxtemplo_indexOf($s, $p) {
 
 function _hxtemplo_lastIndexOf($s, $p) {
 	if(is_string($s)) {
-		return php_Boot::__last_index_of($s, $p[0]);
+		return _hx_last_index_of($s, $p[0]);
 	} else {
 		return call_user_func_array(array($s, 'lastIndexOf'), $p);
 	}
