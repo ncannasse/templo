@@ -19,10 +19,10 @@ open Neko.Ast;
 type context {
 	mutable temp_counter : int;
 	buffer : Buffer.t;
+	mutable inmacro : bool;
 	mutable inphp : bool;
 	mutable blocks_closing : string list;
 	mutable call_level : int;
-	mutable inmacro : bool;
 	mutable container : string;
 	mutable macro_locals : string list;
 }
@@ -85,42 +85,23 @@ function var_ctx(ctx,v) {
 		"$ctx->" + v;
 }
 
+function tpl(ctx) {
+	if ctx.inmacro then "$tpl" else "$this"
+}
+
 function cdata(ctx,s) {
-	if ctx.inmacro then {
-		if ctx.inphp then {
-			Buffer.add(ctx.buffer,"\necho '");
-		}
-		Buffer.add(ctx.buffer,escape_single_quote s);
-	} else {
-		if ctx.inphp then {
-			Buffer.add(ctx.buffer," ?>");
-			if String.length s > 1 then {
-				if String.get s 0 == '\r' && String.get s 1 == '\n' then
-					Buffer.add(ctx.buffer,"\r\n")
-				else if String.get s 0 == '\r' then
-					Buffer.add(ctx.buffer,"\r")
-				else if String.get s 0 == '\n' then
-					Buffer.add(ctx.buffer,"\n")
-			} else if String.length s > 0 && (String.get s 0) == '\n' then
-				Buffer.add(ctx.buffer,"\n");
-		}
-		Buffer.add(ctx.buffer,s);
+	if ctx.inphp then {
+		Buffer.add(ctx.buffer,"\n" + tpl(ctx) + "->buf .= '");
 	}
+	Buffer.add(ctx.buffer,escape_single_quote s);
 	ctx.inphp := false;
 }
 
 function php(ctx,s) {
-	if ctx.inmacro then {
-		if !ctx.inphp then {
-			Buffer.add(ctx.buffer,"';\n");
-		}
-		Buffer.add(ctx.buffer,s);
-	} else {
-		if !ctx.inphp then {
-			Buffer.add(ctx.buffer,"<?php ");
-		}
-		Buffer.add(ctx.buffer,s);
+	if !ctx.inphp then {
+		Buffer.add(ctx.buffer,"';\n");
 	}
+	Buffer.add(ctx.buffer,s);
 	ctx.inphp := true;
 }
 
@@ -157,7 +138,7 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "true" -> php ctx "true"
 	| VIdent "false" -> php ctx "false"
 	| VIdent "null" -> php ctx "null"
-	| VIdent "__content__" -> php ctx "$this->content"
+	| VIdent "__content__" -> php ctx (tpl(ctx) + "->content")
 	| VIdent i -> php(ctx,var_ctx(ctx,i))
 	| VVar v -> php(ctx,var_ctx(ctx,v))
 	| VIf (e1,e2,e3) -> 
@@ -297,16 +278,16 @@ function gen_foreach(ctx,v,e) {
 	php(ctx, repeater(v)+" = _hxtemplo_repeater(");
 	gen_ast_expr(ctx,e);
 	php(ctx, "); ");
-	php(ctx, " while("+repeater(v)+"->hasNext()): ");
+	php(ctx, " while("+repeater(v)+"->hasNext()) {");
 	php(ctx, var_ctx(ctx,v) + " = " + repeater(v) + "->next(); ");
-	open_block(ctx,"endwhile;");
+	open_block(ctx,"}");
 }
 
 function gen_const_expr(ctx,e) {
 	match e {
 	| CValue e ->
 		if ctx.call_level == 0 then 
-			php(ctx, "echo ");
+			php(ctx, tpl(ctx)+"->buf .= ");
 		php(ctx, "_hxtemplo_string(");
 		gen_ast_expr(ctx,e);
 		php(ctx, ")"); // TODO: check this is consistent with neko for quotes and char replacements
@@ -314,33 +295,33 @@ function gen_const_expr(ctx,e) {
 			php(ctx, ";");
 	| CRaw e ->
 		if ctx.call_level == 0 then 
-			php(ctx, "echo ");
+			php(ctx, tpl(ctx)+"->buf .= ");
 		gen_ast_expr(ctx,e);
 		if ctx.call_level == 0 then 
 			php(ctx, ";");
 	| CIf e ->
 		php(ctx, "if(");
 		gen_ast_expr(ctx,e);
-		php(ctx, "):");
-		open_block(ctx,"endif;");
+		php(ctx, ") {");
+		open_block(ctx,"}");
 	| CElseIf e ->
 		php(ctx, "elseif(");
 		gen_ast_expr(ctx,e);
-		php(ctx, "):");
+		php(ctx, ") {");
 	| CElse ->
-		php(ctx, "else:");
+		php(ctx, "} else {");
 	| CForeach (v,e) ->
 		gen_foreach(ctx,v,e);
 	| CFill v ->
-		php(ctx, "$this->bufferCreate();");
-		open_block(ctx,var_ctx(ctx,v)+" = $this->bufferPop();");
+		php(ctx, tpl(ctx) + "->bufferCreate();");
+		open_block(ctx,var_ctx(ctx,v)+" = " + tpl(ctx) + "->bufferPop();");
 	| CUse file ->
 		var t = temp(ctx);
-		php(ctx, "$this->bufferCreate();");
+		php(ctx, tpl(ctx) + "->bufferCreate();");
 		php(ctx, t+" = ");
 		gen_ast_expr(ctx,file);
 		php(ctx, ";");
-		open_block(ctx,"$this->includeTemplate("+t+", '"+ctx.container+"', $ctx);");
+		open_block(ctx,tpl(ctx) + "->includeTemplate("+t+", '"+ctx.container+"', $ctx);");
 	| CSet (v,e) ->
 		php(ctx,var_ctx(ctx,v)+" = ");
 		gen_ast_expr(ctx,e);
@@ -362,7 +343,7 @@ function rec generate_attr(ctx,p,(n,content)) {
 function rec gen_macro_params(ctx,sl) {
 	match sl {
 	| [] -> 
-		php(ctx, "$container, $ctx");
+		php(ctx, "$container, $ctx, $tpl");
 	| s :: sl ->
 		ctx.macro_locals := s :: ctx.macro_locals;
 		php(ctx,"$"+s+", ");
@@ -372,7 +353,7 @@ function rec gen_macro_params(ctx,sl) {
 
 function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
-	php(ctx, "$this->macro('" + name + "', array(");
+	php(ctx, tpl(ctx) + "->macro('" + name + "', array(");
 	gen_macro_args ctx params;
 	php(ctx, "));");
 	ctx.call_level := ctx.call_level-1;
@@ -381,7 +362,7 @@ function rec gen_macro_call(ctx,name,params) {
 function rec gen_macro_args(ctx,el) {
 	match el {
 	| [] -> 
-		php(ctx, "'"+ctx.container + "', $ctx");
+		php(ctx, "'"+ctx.container + "', $ctx, " + tpl(ctx));
 	| e :: el ->
 		List.iter generate_element(ctx) e;
 		php(ctx,", ");
@@ -392,6 +373,20 @@ function rec gen_macro_args(ctx,el) {
 function rec generate_element(ctx,e) {
 	var p = snd e;
 	match fst e {
+	// TODO: check this is the same strategy adopted in Neko
+	| XNode n when n.n_node == "macros" ->
+		match n.n_content {
+		| None -> 
+		| Some cl ->
+			List.iter (function(e2) {
+				match fst e2 {
+				| XMacroDef _ ->
+					generate_element(ctx, e2) 
+				| _ -> 
+					()
+				}
+			}) cl;
+		};
 	| XNode n ->				
 		match n.n_repeat {
 		| None -> 
@@ -405,8 +400,8 @@ function rec generate_element(ctx,e) {
 		| Some cond -> 
 			php(ctx," if(");
 			gen_ast_expr(ctx,cond);
-			php(ctx,"):");
-			open_block(ctx," endif;")
+			php(ctx,") {");
+			open_block(ctx," }")
 		};
 		
 		cdata(ctx, "<" + n.n_node);
@@ -419,7 +414,7 @@ function rec generate_element(ctx,e) {
 			php(ctx,etmp+" = ");
 			gen_ast_expr(ctx,e);
 			php(ctx,"; if(_hxtemplo_is_true("+etmp+"))");
-			php(ctx," echo ' " + attr + "=\"'." + etmp + ".'\"'; ");
+			php(ctx,tpl(ctx) + "->buf .= ' " + attr + "=\"'." + etmp + ".'\"'; ");
 		}) n.n_attrs;
 
 		match n.n_content {
@@ -435,11 +430,10 @@ function rec generate_element(ctx,e) {
 	| XMacroCall (name,params) ->
 		gen_macro_call ctx name params
 	| XMacroDef m ->
-		php(ctx, "");
-		ctx.inmacro := true;
 		php(ctx, "\nfunction " + ctx.container + "_" + m.m_name + "(");
 		gen_macro_params ctx m.m_args;
 		php(ctx, ") {\n");
+		ctx.inmacro := true;
 		open_block(ctx, "\n}\n");
 		match m.m_content {
 			| MContent c ->
@@ -448,8 +442,8 @@ function rec generate_element(ctx,e) {
 				List.iter generate_attr(ctx,p) a;
 		};		
 		close_block(ctx);
-		ctx.inmacro := false;
 		ctx.macro_locals := [];
+		ctx.inmacro := false;
 	| XComment c ->
 		cdata(ctx, c)
 	| XData d ->
@@ -476,15 +470,16 @@ function generate_file(output,(file,content,imports)) {
 	var ctx = {
 		temp_counter = 0;
 		buffer = Buffer.create();
-		inphp = false;
+		inphp = true;
+		inmacro = false;
 		blocks_closing = [];
 		call_level = 0;
-		inmacro = false;
 		container = normalize_name(file);
 		macro_locals = [];
 	};
+	php(ctx,"<?php\n");
 	List.iter generate_template(ctx) content;
-	cdata(ctx,""); // closes opened php when required
+	php(ctx, "\n?>"); // closes opened cdata when required
 	
 	var fout = output + file + ".php";
 	var ch = IO.write_file fout true;

@@ -250,6 +250,7 @@ class Loader {
 		return bufferPop();
 	}
 
+	var buf : String;
 	var b : Array<String>;
 	var content : String;
 	function bufferReset() {
@@ -260,19 +261,26 @@ class Loader {
 	function bufferCreate() {
 		var len = b.length;
 		if(len > 0) {
-			b[len-1] += untyped __call__("ob_get_contents");
-			untyped __call__("ob_end_clean");
+			b[len-1] += buf;
+			buf = '';
 		}
-		untyped __call__("ob_start");
 		b.push('');
 	}
 
 	function bufferPop() {
 		var len = b.length;
-		b[len-1] += untyped __call__("ob_get_contents");
-		untyped __call__("ob_end_clean");
-		if(len > 1) untyped __call__("ob_start");
+		b[len-1] += buf;
+		buf = '';
 		return b.pop();
+	}
+
+	function includeTemplate( file : String, container : String, ctx : Dynamic ) {
+		var old_content = content;
+		content = bufferPop();
+		if( !OPTIMIZED )
+			compileTemplate(file);
+		untyped __call__("require", tmpFileId(file));
+		content = old_content;
 	}
 
 	function tmpFileId( path:String ) : String {
@@ -305,15 +313,6 @@ class Loader {
 			}
 		}
 		throw "invalid macro call to " + name;
-	}
-
-	function includeTemplate( file : String, container : String, ctx : Dynamic ) {
-		var old_content = content;
-		content = bufferPop();
-		if( !OPTIMIZED )
-			compileTemplate(file);
-		untyped __call__("require", tmpFileId(file));
-		 content = old_content;
 	}
 
 	function compileTemplate( path:String ) : Void {
