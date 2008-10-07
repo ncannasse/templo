@@ -2,5 +2,5 @@
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
-    <version name="2.0.6">Added local macros, php output should work</version>
+    <version name="2.0.7">haXe 2.0.1/php fixes</version>
 </project>
