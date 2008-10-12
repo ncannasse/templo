@@ -187,10 +187,8 @@ function rec gen_ast_expr(ctx,e) {
 		| VField (e,v) -> 
 			match v {
 			| v when List.mem v 
-					["cca"; "charAt"; "charCodeAt"; "concat"; "copy"; "indexOf"; "insert"; 
-					 "iterator"; "join"; "lastIndexOf"; "pop"; "push"; "remove"; "reverse"; 
-					 "shift"; "slice"; "sort"; "splice"; "split"; "substr"; "toLowerCase"; 
-					 "toUpperCase"; "toString"; "unshift"] -> 
+					["cca"; "charAt"; "charCodeAt"; "indexOf"; "lastIndexOf";
+					 "split"; "substr"; "toLowerCase"; "toUpperCase"; "toString"] -> 
 				gen_indirect_method ctx v e el
 			| v -> 
 				gen_ast_expr(ctx,e);
@@ -225,15 +223,17 @@ function rec gen_ast_expr(ctx,e) {
 			php(ctx,"->"+v);
 		}
 	| VArray (e1,e2) ->
-		php(ctx,"_hxtemplo_array_get(");
+//		php(ctx,"_hxtemplo_array_get(");
 		gen_ast_expr(ctx,e1);
-		php(ctx,",");
+		php(ctx,"[");
+//		php(ctx,",");
 		gen_ast_expr(ctx,e2);
-		php(ctx,")");
+		php(ctx,"]");
+//		php(ctx,")");
 	| VArrayDecl el ->
-		php(ctx,"array(");
+		php(ctx,"new _hx_array(array(");
 		gen_ast_expr_params ctx el;
-		php(ctx,")");
+		php(ctx,"))");
 	| VBool e ->
 		//false , null and 0
 		php(ctx,"_hxtemplo_is_true(");
@@ -373,6 +373,7 @@ function rec gen_macro_args(ctx,el) {
 function rec generate_element(ctx,e) {
 	var p = snd e;
 	match fst e {
+/*
 	// TODO: check this is the same strategy adopted in Neko
 	| XNode n when n.n_node == "macros" ->
 		match n.n_content {
@@ -387,6 +388,7 @@ function rec generate_element(ctx,e) {
 				}
 			}) cl;
 		};
+*/
 	| XNode n ->				
 		match n.n_repeat {
 		| None -> 
@@ -481,6 +483,10 @@ function generate_file(output,(file,content,imports)) {
 	List.iter generate_template(ctx) content;
 	php(ctx, "\n?>"); // closes opened cdata when required
 	
+	function escape(sep,str) {
+		String.concat "__" (String.split str sep)
+	}
+	var file = escape "\\" (escape "/" file);
 	var fout = output + file + ".php";
 	var ch = IO.write_file fout true;
 	IO.write ch Buffer.string(ctx.buffer);

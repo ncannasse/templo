@@ -346,7 +346,7 @@ class Loader {
 
 	static function __init__() {
 		untyped __php__("
-// TODO: most of these functions should be passed by reference. Check consequences.
+/*
 function _hxtemplo_push($a, $p) {
 	if(is_array($a)) {
 		return array_push($a, $p[0]);
@@ -459,7 +459,7 @@ function _hxtemplo_iterator($a, $p) {
 		return call_user_func_array(array($s, 'iterator'), $p);
 	}
 }
-
+*/
 function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
 		return _hx_substr($s, $p[0], count($p) > 1 ? $p[1] : null);
@@ -511,8 +511,6 @@ function _hxtemplo_lastIndexOf($s, $p) {
 function _hxtemplo_length($v) {
 	if(is_string($v)) {
 		return str_len($v);
-	} else if(is_array($v)) {
-		return count($v);
 	} else {
 		return $v->length;
 	}
@@ -590,11 +588,12 @@ function _hxtemplo_add($v1, $v2) {
 	return $v1.$v2;
 }
 
+/*
 function _hxtemplo_array_get($a, $i) {
 	if(!isset($a[$i])) return null;
 	return $a[$i];
 }
-
+*/
 class _hxtemplo_repeater_array {
 	var $arr;
 	var $index = -1;
