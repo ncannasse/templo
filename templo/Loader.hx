@@ -105,8 +105,9 @@ class Loader {
 		args.push(TMP_DIR);
 		args.push(path);
 		var p = new neko.io.Process("temploc2",args);
+		var output = p.stderr.readAll();
 		if( p.exitCode() != 0 )
-			throw "Temploc compilation of "+path+" failed : "+p.stderr.readAll();
+			throw "Temploc compilation of "+path+" failed : "+output;
 	}
 
 	function loadTemplate( nPath:String ) {
