@@ -138,10 +138,10 @@ function check_expr(chk,e) {
 		| VUnop (op,prefix,e) -> VUnop op prefix loop(e)
 		| VCall (e,el) -> VCall loop(e) (List.map loop el)
 		| VParent e -> VParent loop(e)
-		| VField (e,f) -> 
+		| VField (e,f) ->
 			if String.get f 0 == '_' then
 				VCall (VField loop(e) ("get"+f),snd e) []
-			else	
+			else
 				VField loop(e) f
 		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
@@ -236,8 +236,10 @@ function rec check_macro(chk,name,kind,params,pos) {
 			var e = if Regexp.find r_integer str 0 String.length(str) then {
 				var iv = int Regexp.matched(r_integer,1);
 				VConst CInt(iv);
-			} else
-				VConst CString(str);
+			} else match str {
+				| "true" | "false" | "null" -> VIdent str
+				| _ -> VConst CString(str)
+			}
 			[(XConstr CRaw((e,p)),p)]
 		| el ->
 			List.map raw el
