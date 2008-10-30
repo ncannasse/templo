@@ -347,120 +347,6 @@ class Loader {
 
 	static function __init__() {
 		untyped __php__("
-/*
-function _hxtemplo_push($a, $p) {
-	if(is_array($a)) {
-		return array_push($a, $p[0]);
-	} else {
-		return call_user_func_array(array($s, 'push'), $p);
-	}
-}
-
-function _hxtemplo_concat($a, $p) {
-	if(is_array($a)) {
-		return array_merge($a, $p[0]);
-	} else {
-		return call_user_func_array(array($s, 'concat'), $p);
-	}
-}
-
-function _hxtemplo_join($a, $p) {
-	if(is_array($a)) {
-		return join($p[0], $a);
-	} else {
-		return call_user_func_array(array($s, 'join'), $p);
-	}
-}
-
-function _hxtemplo_pop($a, $p) {
-	if(is_array($a)) {
-		return array_pop($a);
-	} else {
-		return call_user_func_array(array($s, 'pop'), $p);
-	}
-}
-
-function _hxtemplo_reverse($a, $p) {
-	if(is_array($a)) {
-		return array_reverse($a);
-	} else {
-		return call_user_func_array(array($s, 'reverse'), $p);
-	}
-}
-
-function _hxtemplo_shift($a, $p) {
-	if(is_array($a)) {
-		return array_shift($a);
-	} else {
-		return call_user_func_array(array($s, 'shift'), $p);
-	}
-}
-
-
-function _hxtemplo_slice($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_slice($a, $p[0], count($p) > 1 ? $p[1] : null);
-	} else {
-		return call_user_func_array(array($s, 'slice'), $p);
-	}
-}
-
-function _hxtemplo_sort($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_sort($a, $p[0]);
-	} else {
-		return call_user_func_array(array($s, 'sort'), $p);
-	}
-}
-
-function _hxtemplo_splice($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_splice($a, $p[0], $p[1]);
-	} else {
-		return call_user_func_array(array($s, 'splice'), $p);
-	}
-}
-
-function _hxtemplo_copy($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_copy($a);
-	} else {
-		return call_user_func_array(array($s, 'copy'), $p);
-	}
-}
-
-function _hxtemplo_unshift($a, $p) {
-	if(is_array($a)) {
-		return array_unshift($a);
-	} else {
-		return call_user_func_array(array($s, 'unshift'), $p);
-	}
-}
-
-function _hxtemplo_insert($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_insert($a, $p[0], $p[1]);
-	} else {
-		return call_user_func_array(array($s, 'insert'), $p);
-	}
-}
-
-function _hxtemplo_remove($a, $p) {
-	if(is_array($a)) {
-		return _hx_array_remove($a, $p[0]);
-	} else {
-		return call_user_func_array(array($s, 'remove'), $p);
-	}
-}
-
-function _hxtemplo_iterator($a, $p) {
-	if(is_array($a)) {
-		return new HArrayIterator($a);
-	} else {
-		return call_user_func_array(array($s, 'iterator'), $p);
-	}
-}
-*/
 function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
 		return _hx_substr($s, $p[0], count($p) > 1 ? $p[1] : null);
@@ -519,7 +405,7 @@ function _hxtemplo_length($v) {
 
 function _hxtemplo_split($s, $p) {
 	if(is_string($s)) {
-		return explode($p[0], $s);
+		return new _hx_array(explode($p[0], $s));
 	} else {
 		return call_user_func_array(array($s, 'split'), $p);
 	}
@@ -574,8 +460,9 @@ function _hxtemplo_string($s) {
 }
 
 function _hxtemplo_repeater($it) {
-	if(is_array($it))
-		return new _hxtemplo_repeater_array($it);
+	if($it == null)
+		//TODO: is this correct or it should return an error?
+		return new _hxtemplo_repeater_decorator(new _hx_array(array()));
 	else
 		return new _hxtemplo_repeater_decorator($it);
 }
@@ -587,42 +474,6 @@ function _hxtemplo_add($v1, $v2) {
 	if(is_numeric($v1) && is_numeric($v2))
 		return $v1+$v2;
 	return $v1.$v2;
-}
-
-/*
-function _hxtemplo_array_get($a, $i) {
-	if(!isset($a[$i])) return null;
-	return $a[$i];
-}
-*/
-class _hxtemplo_repeater_array {
-	var $arr;
-	var $index = -1;
-	var $number = 0;
-	var $odd = false;
-	var $even = true;
-	var $first = true;
-	var $last = false;
-	var $size = null;
-
-	function __construct($arr) {
-		$this->arr = $arr;
-		$this->size = count($arr);
-	}
-
-	function hasNext() {
-		return $this->index+1 < $this->size;
-	}
-
-	function next() {
-		$this->index++;
-		$this->number++;
-		$this->odd = !$this->odd;
-		$this->even = !$this->even;
-		$this->first = $this->index == 0;
-		$this->last = $this->size == $this->number;
-		return $this->arr[$this->index];
-	}
 }
 
 class _hxtemplo_repeater_decorator {

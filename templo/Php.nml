@@ -305,9 +305,11 @@ function gen_const_expr(ctx,e) {
 		php(ctx, ") {");
 		open_block(ctx,"}");
 	| CElseIf e ->
-		php(ctx, "elseif(");
+		close_block(ctx);
+		php(ctx, "else if(");
 		gen_ast_expr(ctx,e);
 		php(ctx, ") {");
+		open_block(ctx,"}");
 	| CElse ->
 		php(ctx, "} else {");
 	| CForeach (v,e) ->
