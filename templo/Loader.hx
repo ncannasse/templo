@@ -286,7 +286,7 @@ class Loader {
 
 	function tmpFileId( path:String ) : String {
 		if( path.charAt(0) == "/" ) path = path.substr(1);
-		path = (~/[\/:\\]+/).replace(path, "__");
+		path = (~/[\/:\\]+/g).replace(path, "__");
 		return TMP_DIR + path + ".php";
 	}
 
