@@ -437,7 +437,7 @@ function _hxtemplo_toString($s, $p) {
 	}
 }
 
-function _hxtemplo_is_true($v) { return $v || $v === ''; }
+function _hxtemplo_is_true($v) { return $v !== null && $v !== false; }
 
 function _hxtemplo_string($s) {
 	if($s === true)
