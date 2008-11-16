@@ -223,13 +223,19 @@ function rec gen_ast_expr(ctx,e) {
 			php(ctx,"->"+v);
 		}
 	| VArray (e1,e2) ->
-//		php(ctx,"_hxtemplo_array_get(");
-		gen_ast_expr(ctx,e1);
-		php(ctx,"[");
-//		php(ctx,",");
-		gen_ast_expr(ctx,e2);
-		php(ctx,"]");
-//		php(ctx,")");
+		match fst e1 {
+		| VCall _ ->
+			php(ctx,"_hxtemplo_array_get(");
+			gen_ast_expr(ctx,e1);
+			php(ctx,",");
+			gen_ast_expr(ctx,e2);
+			php(ctx,")");		
+		| _ ->
+			gen_ast_expr(ctx,e1);
+			php(ctx,"[");
+			gen_ast_expr(ctx,e2);
+			php(ctx,"]");
+		}
 	| VArrayDecl el ->
 		php(ctx,"new _hx_array(array(");
 		gen_ast_expr_params ctx el;

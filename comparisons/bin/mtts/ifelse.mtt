@@ -7,3 +7,5 @@
 ::end::
 
 <span ::cond vtrue::>true</span>
+
+::if d == null::::elseif d == 0::::d::::else:: xxx ::end::

@@ -347,6 +347,10 @@ class Loader {
 
 	static function __init__() {
 		untyped __php__("
+function _hxtemplo_array_get($a, $i) {
+	return $a[$i];
+}
+		
 function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
 		return _hx_substr($s, $p[0], count($p) > 1 ? $p[1] : null);
@@ -437,7 +441,8 @@ function _hxtemplo_toString($s, $p) {
 	}
 }
 
-function _hxtemplo_is_true($v) { return $v !== null && $v !== false; }
+//function _hxtemplo_is_true($v) { return $v || $v === ''; }
+function _hxtemplo_is_true($v) { return $v !== 0 && $v !== null && $v !== false; }
 
 function _hxtemplo_string($s) {
 	if($s === true)
