@@ -416,9 +416,15 @@ function generate_file(output,debug,(file,content,imports)) {
 	}
 	var fout = output + file + ".n";
 	var code = Neko.Compile.compile program;
-	var ch = IO.write_file fout true;
+	var ch, str = IO.write_string();
 	Neko.Bytecode.write ch code;
-	IO.close_out ch;
+	var new_data = str();
+	var data = try IO.file_contents fout catch { _ -> "" };
+	if new_data != data then {
+		var ch = IO.write_file fout true;
+		IO.write ch new_data;
+		IO.close_out ch;
+	}
 }
 
 function generate(output,debug,files) {
