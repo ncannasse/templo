@@ -20,6 +20,7 @@ type context {
 	mutable temp_counter : int;
 	buffer : Buffer.t;
 	mutable inmacro : bool;
+	mutable inmacroarg : bool;
 	mutable inphp : bool;
 	mutable blocks_closing : string list;
 	mutable call_level : int;
@@ -91,7 +92,11 @@ function tpl(ctx) {
 
 function cdata(ctx,s) {
 	if ctx.inphp then {
-		Buffer.add(ctx.buffer,"\n" + tpl(ctx) + "->buf .= '");
+		if ctx.inmacroarg then {
+			Buffer.add(ctx.buffer,"'");
+		} else {
+			Buffer.add(ctx.buffer,"\n" + tpl(ctx) + "->buf .= '");
+		}
 	}
 	Buffer.add(ctx.buffer,escape_single_quote s);
 	ctx.inphp := false;
@@ -99,7 +104,11 @@ function cdata(ctx,s) {
 
 function php(ctx,s) {
 	if !ctx.inphp then {
-		Buffer.add(ctx.buffer,"';\n");
+		if ctx.inmacroarg then {
+			Buffer.add(ctx.buffer,"'");
+		} else {
+			Buffer.add(ctx.buffer,"';\n");
+		}
 	}
 	Buffer.add(ctx.buffer,s);
 	ctx.inphp := true;
@@ -362,7 +371,9 @@ function rec gen_macro_params(ctx,sl) {
 function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
 	php(ctx, tpl(ctx) + "->macro('" + name + "', array(");
+	ctx.inmacroarg := true;
 	gen_macro_args ctx params;
+	ctx.inmacroarg := false;
 	php(ctx, "));");
 	ctx.call_level := ctx.call_level-1;
 }
@@ -482,6 +493,7 @@ function generate_file(output,(file,content,imports)) {
 		buffer = Buffer.create();
 		inphp = true;
 		inmacro = false;
+		inmacroarg = false;
 		blocks_closing = [];
 		call_level = 0;
 		container = normalize_name(file);
