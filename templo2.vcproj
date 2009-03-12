@@ -40,6 +40,9 @@
 			RelativePath=".\templo\Checker.nml">
 		</File>
 		<File
+			RelativePath=".\templo\Compare.nml">
+		</File>
+		<File
 			RelativePath=".\templo\Lexer.nml">
 		</File>
 		<File

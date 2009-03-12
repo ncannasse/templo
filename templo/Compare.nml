@@ -1,0 +1,337 @@
+/*
+ *  Templo compiler
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+open Lexer;
+open Templo.Ast;
+
+exception ExtraExpr : expr;
+exception ExtraElt : elt;
+exception ExtraAttr : (string,elt);
+exception DiffExpr : (expr,expr);
+exception DiffElt : (elt,elt);
+exception Diff : ((string,pos),(string,pos));
+
+var data_meaningful = &false
+var debug = &false
+
+function check_inner_data(n) {
+	match n {
+	| "script" -> true
+	| _ -> false
+	}
+}
+
+function data(f) {
+	var old = *data_meaningful;
+	data_meaningful := f;
+	function() data_meaningful := old;
+}
+
+function diff(sa,ea,sb,eb) {
+	throw Diff((sa,snd ea),(sb,snd eb));
+}
+
+function check(sa,ea,sb,eb) {
+	if sa != sb then diff sa ea sb eb
+}
+
+function rec compare_expr(ea,eb) {
+	match (fst ea,fst eb) {
+	| (VConst a,VConst b) when a == b -> ()
+	| (VIdent a,VIdent b) when a == b -> ()
+	| (VVar a, VVar b) when a == b -> ()
+	| (VIf (ea1,ea2,eao),VIf (eb1,eb2,ebo)) ->
+		compare_expr ea1 eb1;
+		compare_expr ea2 eb2;
+		match (eao,ebo) {
+		| (None, None) -> ()
+		| (Some ea, Some eb) -> compare_expr ea eb;
+		| (None, Some e) | (Some e, None) -> throw ExtraExpr(e)
+		}
+	| (VBinop (opa,ea1,ea2),VBinop (opb,eb1,eb2)) ->
+		if opa != opb then diff s_op(opa) ea s_op(opb) eb;
+		compare_expr ea1 eb1;
+		compare_expr ea2 eb2;
+	| (VUnop (opa,flaga,ea1),VUnop (opb,flagb,eb1)) ->
+		if opa != opb || flaga != flagb then diff s_unop(opa) ea s_unop(opb) eb;
+		compare_expr ea1 eb1
+	| (VCall (ea1,eal),VCall (eb1,ebl)) ->
+		compare_expr ea1 eb1;
+		compare_expr_list eal ebl
+	| (VParent ea,VParent eb) ->
+		compare_expr ea eb
+	| (VField (ea1,fa),VField (eb1,fb)) ->
+		compare_expr ea1 eb1;
+		check fa ea fb eb;
+	| (VArray (ea1,ea2),VArray (eb1,eb2)) ->
+		compare_expr ea1 ea2;
+		compare_expr eb1 eb2;
+	| (VArrayDecl eal,VArrayDecl ebl) ->
+		compare_expr_list eal ebl
+	| (VBool ea, VBool eb) ->
+		compare_expr ea eb
+	| _ ->
+		throw DiffExpr(ea,eb)
+	}
+}
+
+function rec compare_expr_list(ela,elb) {
+	match (ela,elb) {
+	| ([],[]) -> ()
+	| (ea :: ela, eb :: elb) ->
+		compare_expr ea eb;
+		compare_expr_list ela elb
+	| ([],eb :: _) ->
+		throw ExtraExpr(eb);
+	| (ea :: _,[]) ->
+		throw ExtraExpr(ea);
+	}
+}
+
+function rec compare_attr_list(callb,ela,elb,ea,eb) {
+	var f = data true;
+	match (ela,elb) {
+	| ([],[]) -> ()
+	| ((a,xa) :: ela, (b,xb) :: elb) ->
+		check a ea b eb;
+		callb xa xb;
+	| ([],(b,_) :: _) ->
+		throw ExtraAttr(b,eb);
+	| ((a,_) :: _,[]) ->
+		throw ExtraAttr(a,ea);
+	}
+	f();
+}
+
+function is_null_elt(e) {
+	match fst e {
+	| XComment _ | XData _ -> !(*data_meaningful)
+	| _ -> false
+	}
+}
+
+function rec compare_elt(ea:elt,eb:elt) {
+	match (fst ea,fst eb) {
+	| (XNode na, XNode nb) ->
+		check na.n_node ea nb.n_node eb;
+		compare_attr_list compare_content na.n_attributes nb.n_attributes ea eb;
+		compare_attr_list compare_expr na.n_attrs nb.n_attrs ea eb;
+		var ma = List.map (function((n,p,c)) (n,c)) na.n_macros;
+		var mb = List.map (function((n,p,c)) (n,c)) nb.n_macros;
+		compare_attr_list (function(ca,cb) {
+			var la = List.length ca;
+			var lb = List.length cb;
+			if la != lb then diff (la+" args") ea (lb+" args") eb;
+			List.iter2 compare_content ca cb
+		}) ma mb ea eb;
+		match (na.n_cond, nb.n_cond) {
+		| (None,None) -> ()
+		| (Some ea,Some eb) -> compare_expr ea eb
+		| _ -> diff "<cond>" ea "<cond>" eb
+		}
+		match (na.n_repeat, nb.n_repeat) {
+		| (None,None) -> ()
+		| (Some (va,ea),Some (vb,eb)) -> 
+			check va ea vb eb;
+			compare_expr ea eb
+		| _ -> diff "<repeat>" ea "<repeat>" eb
+		}
+		match (na.n_content, nb.n_content) {
+		| (None,None) -> ()
+		| (Some ela,Some elb) ->
+			var f = data (check_inner_data na.n_node);
+			compare_content ela elb;
+			f()
+		| _ -> diff "<content>" ea "<content>" eb
+		}
+	| (XMacroCall (ma,ela),XMacroCall(mb,elb)) ->
+		check ma ea mb eb;
+		var la = List.length ela;
+		var lb = List.length elb;
+		if la != lb then diff (la + " args") ea (lb + " args") eb;
+		List.iter2 (function(ela,elb) {
+			var f = data true;
+			compare_content ela elb;
+			f();
+		}) ela elb;
+	| (XMacroDef ma, XMacroDef mb) ->
+		check ma.m_name ea mb.m_name eb;
+		var la = List.length ma.m_args;
+		var lb = List.length mb.m_args;
+		if la != lb then diff (la + " args") ea (lb + " args") eb;
+		List.iter2 (function(a,b) check a ea b eb) ma.m_args mb.m_args;
+		match (ma.m_content, mb.m_content) {
+		| (MContent ela,MContent elb) -> compare_content ela elb			
+		| (MAttr la,MAttr lb) -> compare_attr_list compare_content la lb ea eb
+		| _ -> diff "<content>" ea "<content>" eb
+		}
+	| (XComment a,XComment b) | (XData a,XData b) ->
+		// in case it's meaningful to compare them
+		check a ea b eb
+	| (XCData ela,XCData elb) ->
+		compare_content ela elb
+	| (XConstr ca,XConstr cb) ->
+		match (ca,cb) {
+		| (CValue ea,CValue eb) | (CRaw ea, CRaw eb) ->
+			match (fst ea,fst eb) {
+			| (VConst (CString a),VConst (CString b)) -> if *data_meaningful then check a ea b eb;
+			| _ -> compare_expr ea eb
+			}
+		| (CIf ea, CIf eb)
+		| (CElseIf ea, CElseIf eb)
+		| (CUse ea, CUse eb)
+		| (CEval ea, CEval eb) ->
+			compare_expr ea eb
+		| (CFill a, CFill b) when a == b ->
+			()
+		| (CElse,CElse) | (CEnd,CEnd) ->
+			()
+		| (CForeach (a,ea1),CForeach (b,eb1)) | (CSet (a,ea1),CSet (b,eb1)) ->
+			check a ea b eb;
+			compare_expr ea1 eb1
+		| _ ->
+			throw DiffElt(ea,eb)
+		}
+	| _ ->
+		throw DiffElt(ea,eb)
+	}
+}
+
+function rec compare_content(ela: elt list,elb : elt list) {
+	match (ela,elb) {
+	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb
+	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb
+	| ([],[]) -> ()
+	| (ea :: ela, eb :: elb) ->
+		compare_elt ea eb;
+		compare_content ela elb
+	| ([],eb :: _) ->
+		throw ExtraElt(eb);
+	| (ea :: _,[]) ->
+		throw ExtraElt(ea);
+	}
+}
+
+function log(io,fmt:'a format,p : 'a) {
+	IO.printf io fmt p;
+	IO.write io "\n";
+}
+
+function pos_str((_,p)) {
+	if *debug then "" else p.psource + ":" + p.pline + ": :"
+}
+
+function str(e,f) {
+	if *debug then "\n\t" + string(e) + "\n" else "'"+f e+"'";
+}
+
+function txt_str((t,_)) {
+	t
+}
+
+function rec expr_str(e) {
+	match fst e {
+	| VConst c ->
+		match c {
+		| CInt i -> string i
+		| CString s -> s
+		| CFloat s -> s
+		}
+	| VIdent i | VVar i ->
+		i
+	| VIf (e1,e2,eo) ->
+		var eostr = match eo { None -> "" | Some e -> " else " + expr_str e };
+		"if " + expr_str e1 + " " + expr_str e2 + eostr;
+	| VBinop (op,e1,e2) ->
+		expr_str e1 + s_op op + expr_str e2
+	| VUnop (op,prefix,e) ->
+		if prefix then s_unop op + expr_str e else expr_str e + s_unop op
+	| VCall (e,el) ->
+		expr_str e + "(" + String.concat "," (List.map expr_str el) + ")"
+	| VParent e ->
+		"(" + expr_str e + ")"
+	| VField (e,f) ->
+		expr_str e + "." + f
+	| VArray (e1,e2) ->
+		expr_str e1 + "[" + expr_str e2 + "]"
+	| VArrayDecl el ->
+		"[" + String.concat "," (List.map expr_str el) + "]"
+	| VBool e ->
+		expr_str e
+	}
+}
+
+function rec elt_str(e) {
+	match fst e {
+	| XNode n -> "<" + n.n_node + "..." 
+	| XMacroCall (m,el) -> "$$" + m + "(...)"
+	| XMacroDef m -> "<macro name=\"" + m.m_name + "(" + String.concat "," m.m_args + ")\"..."
+	| XComment s -> "<!--"+s+"-->"
+	| XData s -> s
+	| XCData _ -> "<![CDATA[...]]>"
+	| XConstr c ->
+		match c {
+		| CValue e -> "::" + expr_str e + "::"
+		| CRaw e -> "::raw " + expr_str e + "::"
+		| CIf e -> "::if "+expr_str e+"::"
+		| CElseIf e -> "::elseif "+expr_str e+"::"
+		| CElse -> "::else::"
+		| CForeach (s,e) -> "::foreach " + s + " " + expr_str e + "::"
+		| CFill s -> "::fill "+s+"::"
+		| CUse e -> "::use " + expr_str e + "::"
+		| CSet (v,e) -> "::set "+v+" = "+expr_str e+"::"
+		| CEval e -> "::eval "+expr_str e+"::"
+		| CEnd -> "::end::"
+		}
+	}
+}
+
+function rec compare(a,b,compile,io) {
+	var is_a = try Some (Sys.is_directory a) catch { _ -> None };
+	var is_b = try Some (Sys.is_directory b) catch { _ -> None };
+	match (is_a, is_b) {
+	| (None, Some _) ->
+		log io "%s is no longer useful" b;
+	| (Some _, None) ->
+		log io "%s is missing" b;
+	| (None, None) ->
+		log io "Both '%s' and '%s' are missing" (a,b);
+	| (Some true,Some true) ->
+		var files_a = Sys.read_directory a;
+		var files_b = Sys.read_directory b;
+		var files = List.fold (function(acc,e) if List.mem e acc then acc else e :: acc) files_b files_a;
+		List.iter (function(f)
+			match Sys.extension(f) {
+			| "" | "mtt" -> compare (a+"/"+f) (b+"/"+f) compile io
+			| _ -> () // skip other files
+			}
+		) files;
+	| (Some true,Some false) | (Some false,Some true) ->
+		Templo.Compare.log IO.stdout "'%s' and '%s' are not both files or directories" (a,b)
+	| _ ->
+		var ea = compile a;
+		var eb = compile b;
+		try  {
+			data_meaningful := false;
+			compare_content ea eb
+		} catch {
+			| ExtraExpr e -> log io "%s extra %s" (pos_str e, str e expr_str)
+			| ExtraElt e -> log io "%s extra %s" (pos_str e, str e elt_str)
+			| ExtraAttr (a,e) -> log io "%s extra attribute %s in %s" (pos_str e,a,str e elt_str)
+			| DiffExpr (a,b) -> log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str)
+			| DiffElt (a,b) -> log io "%s %s should be %s" (pos_str b,str b elt_str, str a elt_str)
+			| Diff (a,b) -> log io "%s %s should be %s" (pos_str b,str a txt_str, str b txt_str)
+		}		
+	}
+}
