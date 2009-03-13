@@ -2,5 +2,5 @@
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
-    <version name="2.0.8">haXe 2.0.1/php fixes</version>
+    <version name="2.1.0">Added -compare for structural comparisons</version>
 </project>
