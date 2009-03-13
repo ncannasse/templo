@@ -259,6 +259,8 @@ function rec gen_ast_expr(ctx,e) {
 			gen_ast_expr(ctx,e);
 		}
 		php(ctx,")");
+	| VIgnore e ->
+		gen_ast_expr ctx e
 	}
 }
 

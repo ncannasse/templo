@@ -68,6 +68,7 @@ type expr_def {
 	VArray : (expr,expr);
 	VArrayDecl : expr list;
 	VBool : expr;
+	VIgnore : expr;
 }
 
 type expr = (expr_def,pos)
@@ -96,6 +97,7 @@ type node {
 	mutable n_repeat : (string,expr) option;
 	mutable n_attrs : (string,expr) list;
 	mutable n_content : content option;
+	mutable n_ignore : bool;
 }
 
 type macro_content {

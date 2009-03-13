@@ -65,6 +65,7 @@ try {
 		("-debug",Args.Void (function() debug := true),": use debug mode");
 		("-xml",Args.Void (function() xml := true),": don't use XHTML checks");
 		("-compare",Args.String (function(str) {
+			target := function(_,_,_) {}
 			match String.split str "@" {
 			| [a;b] -> compares := (a,b) :: *compares;
 			| _ -> error ("Invalid comparison pattern : " + str);
@@ -86,7 +87,15 @@ try {
 	var macros = List.map (function(file) compile(file,true)) List.rev(*macros);
 	var files = List.map (function(file) compile(file,false)) List.rev(*files);
 	List.iter (function((a,b)) {
-		Templo.Compare.debug := *debug;
+		var macros = List.concat (List.map (function((_,el,_)) {
+			List.map (function(e)
+				match fst e {
+				| XMacroDef m -> m
+				| _ -> assert()
+				}
+			) el
+		}) macros);
+		Templo.Compare.init (*debug) macros;
 		Templo.Compare.compare a b (function(f) { var _,el,_ = compile f false; el }) IO.stdout
 	}) List.rev(*compares);
 	var datas = List.append macros files;

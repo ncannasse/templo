@@ -146,6 +146,7 @@ function check_expr(chk,e) {
 		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
 		| VBool e -> VBool loop(e)
+		| VIgnore e -> VIgnore loop(e)
 		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}
@@ -314,6 +315,7 @@ function rec check_rec(chk,e) {
 				| Some c ->
 					Some (check_content chk c)
 			};
+			n_ignore = n.n_ignore;
 		}
 		chk.vars := old;
 		XNode n2

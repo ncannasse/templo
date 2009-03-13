@@ -21,14 +21,24 @@ exception ExtraAttr : (string,elt);
 exception DiffExpr : (expr,expr);
 exception DiffElt : (elt,elt);
 exception Diff : ((string,pos),(string,pos));
+exception MacroNotFound : (string,pos);
 
-var data_meaningful = &false
-var debug = &false
+var data_meaningful = &false;
+var debug = &false;
+var macros = &Map.empty();
+var used_var_callback = &(function(_,_) ());
 
-function check_inner_data(n) {
+function node_data_matters(n) {
 	match n {
-	| "script" -> true
+	| "script" | "style" -> true
 	| _ -> false
+	}
+}
+
+function is_data_attribute(a) {
+	match a {
+	| "title" | "alt" | "value" -> false
+	| _ -> true
 	}
 }
 
@@ -46,52 +56,92 @@ function check(sa,ea,sb,eb) {
 	if sa != sb then diff sa ea sb eb
 }
 
-function rec compare_expr(ea,eb) {
+function rec compare_attr_list(callb,ela,elb,ea,eb) {
+	match (ela,elb) {
+	| ([],[]) -> ()
+	| ((a,xa) :: ela, (b,xb) :: elb) ->
+		check a ea b eb;
+		var f = data is_data_attribute(a);
+		callb xa xb;
+		f();
+		compare_attr_list callb ela elb ea eb
+	| ([],(b,_) :: _) ->
+		throw ExtraAttr(b,eb);
+	| ((a,_) :: _,[]) ->
+		throw ExtraAttr(a,ea);
+	}
+}
+
+var _ = 0; // hack
+
+/*
+	We must tell for each macro param if it's used in a place where PCDATA matter
+*/
+function rec add_macro(m) {
+	var used = Hashtbl.create();
+	used_var_callback := (function(v,logic) if logic then Hashtbl.replace used v true);
+	match m.m_content {
+	| MContent c -> compare_content c c
+	| MAttr al ->
+		var e0 = (XData "ASSERT",null_pos);
+		compare_attr_list compare_content al al e0 e0
+	}
+	var params = List.map (function(p) Hashtbl.exists used p) m.m_args;
+	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map (function(p) p + ":" + if Hashtbl.exists used p then "logic" else "text") m.m_args));
+	macros := Map.add (*macros) m.m_name params;
+}
+
+function rec compare_expr(ea:expr,eb:expr,logic) {
 	match (fst ea,fst eb) {
 	| (VConst a,VConst b) when a == b -> ()
+	| (VConst (CString _), VConst (CString _)) when !logic -> ()
 	| (VIdent a,VIdent b) when a == b -> ()
-	| (VVar a, VVar b) when a == b -> ()
+	| (VVar a, VVar b) when a == b -> (*used_var_callback) a logic
 	| (VIf (ea1,ea2,eao),VIf (eb1,eb2,ebo)) ->
-		compare_expr ea1 eb1;
-		compare_expr ea2 eb2;
+		compare_expr ea1 eb1 true;
+		compare_expr ea2 eb2 logic;
 		match (eao,ebo) {
 		| (None, None) -> ()
-		| (Some ea, Some eb) -> compare_expr ea eb;
+		| (Some ea, Some eb) -> compare_expr ea eb logic;
 		| (None, Some e) | (Some e, None) -> throw ExtraExpr(e)
 		}
 	| (VBinop (opa,ea1,ea2),VBinop (opb,eb1,eb2)) ->
 		if opa != opb then diff s_op(opa) ea s_op(opb) eb;
-		compare_expr ea1 eb1;
-		compare_expr ea2 eb2;
+		compare_expr ea1 eb1 true;
+		compare_expr ea2 eb2 true;
 	| (VUnop (opa,flaga,ea1),VUnop (opb,flagb,eb1)) ->
 		if opa != opb || flaga != flagb then diff s_unop(opa) ea s_unop(opb) eb;
-		compare_expr ea1 eb1
+		compare_expr ea1 eb1 true
 	| (VCall (ea1,eal),VCall (eb1,ebl)) ->
-		compare_expr ea1 eb1;
-		compare_expr_list eal ebl
+		compare_expr ea1 eb1 true;
+		compare_expr_list eal ebl true
 	| (VParent ea,VParent eb) ->
-		compare_expr ea eb
+		compare_expr ea eb logic
 	| (VField (ea1,fa),VField (eb1,fb)) ->
-		compare_expr ea1 eb1;
+		compare_expr ea1 eb1 true;
 		check fa ea fb eb;
 	| (VArray (ea1,ea2),VArray (eb1,eb2)) ->
-		compare_expr ea1 ea2;
-		compare_expr eb1 eb2;
+		compare_expr ea1 eb1 true;
+		compare_expr ea2 eb2 true;
 	| (VArrayDecl eal,VArrayDecl ebl) ->
-		compare_expr_list eal ebl
+		compare_expr_list eal ebl true
 	| (VBool ea, VBool eb) ->
-		compare_expr ea eb
+		compare_expr ea eb true
+	| (VIgnore ea,VIgnore eb) ->
+		var f = data false;
+		compare_expr ea eb false;
+		f();
 	| _ ->
 		throw DiffExpr(ea,eb)
 	}
 }
 
-function rec compare_expr_list(ela,elb) {
+function rec compare_expr_list(ela,elb,logic) {
 	match (ela,elb) {
 	| ([],[]) -> ()
 	| (ea :: ela, eb :: elb) ->
-		compare_expr ea eb;
-		compare_expr_list ela elb
+		compare_expr ea eb logic;
+		compare_expr_list ela elb logic
 	| ([],eb :: _) ->
 		throw ExtraExpr(eb);
 	| (ea :: _,[]) ->
@@ -99,59 +149,32 @@ function rec compare_expr_list(ela,elb) {
 	}
 }
 
-function rec compare_attr_list(callb,ela,elb,ea,eb) {
-	var f = data true;
-	match (ela,elb) {
-	| ([],[]) -> ()
-	| ((a,xa) :: ela, (b,xb) :: elb) ->
-		check a ea b eb;
-		callb xa xb;
-	| ([],(b,_) :: _) ->
-		throw ExtraAttr(b,eb);
-	| ((a,_) :: _,[]) ->
-		throw ExtraAttr(a,ea);
-	}
-	f();
-}
-
-function is_null_elt(e) {
-	match fst e {
-	| XComment _ | XData _ -> !(*data_meaningful)
-	| _ -> false
-	}
-}
-
 function rec compare_elt(ea:elt,eb:elt) {
 	match (fst ea,fst eb) {
 	| (XNode na, XNode nb) ->
 		check na.n_node ea nb.n_node eb;
+		if na.n_ignore != nb.n_ignore then diff "::ignore" ea "::ignore" eb;
 		compare_attr_list compare_content na.n_attributes nb.n_attributes ea eb;
-		compare_attr_list compare_expr na.n_attrs nb.n_attrs ea eb;
-		var ma = List.map (function((n,p,c)) (n,c)) na.n_macros;
-		var mb = List.map (function((n,p,c)) (n,c)) nb.n_macros;
-		compare_attr_list (function(ca,cb) {
-			var la = List.length ca;
-			var lb = List.length cb;
-			if la != lb then diff (la+" args") ea (lb+" args") eb;
-			List.iter2 compare_content ca cb
-		}) ma mb ea eb;
+		compare_attr_list (function(ea,eb) compare_expr ea eb (*data_meaningful)) na.n_attrs nb.n_attrs ea eb;
+		function make_macro((m,p,c)) (XMacroCall m c,p);		
+		compare_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros);
 		match (na.n_cond, nb.n_cond) {
 		| (None,None) -> ()
-		| (Some ea,Some eb) -> compare_expr ea eb
-		| _ -> diff "<cond>" ea "<cond>" eb
+		| (Some ea,Some eb) -> compare_expr ea eb true
+		| _ -> diff "::cond" ea "::cond" eb
 		}
 		match (na.n_repeat, nb.n_repeat) {
 		| (None,None) -> ()
-		| (Some (va,ea),Some (vb,eb)) -> 
+		| (Some (va,ea),Some (vb,eb)) ->
 			check va ea vb eb;
-			compare_expr ea eb
-		| _ -> diff "<repeat>" ea "<repeat>" eb
+			compare_expr ea eb true
+		| _ -> diff "::repeat" ea "::repeat" eb
 		}
 		match (na.n_content, nb.n_content) {
 		| (None,None) -> ()
 		| (Some ela,Some elb) ->
-			var f = data (check_inner_data na.n_node);
-			compare_content ela elb;
+			var f = data (node_data_matters na.n_node);
+			if !na.n_ignore then compare_content ela elb;
 			f()
 		| _ -> diff "<content>" ea "<content>" eb
 		}
@@ -160,8 +183,13 @@ function rec compare_elt(ea:elt,eb:elt) {
 		var la = List.length ela;
 		var lb = List.length elb;
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
+		var margs = try Map.find (*macros) ma catch { Not_found -> throw MacroNotFound(ma,snd ea) };
+		if List.length margs != la then error "Macro #args differs";
+		var margs = &margs;
 		List.iter2 (function(ela,elb) {
-			var f = data true;
+			var t = &true;
+			margs := match *margs { [] -> assert() | p :: l -> t:= p; l };
+			var f = data (*t);
 			compare_content ela elb;
 			f();
 		}) ela elb;
@@ -172,10 +200,11 @@ function rec compare_elt(ea:elt,eb:elt) {
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
 		List.iter2 (function(a,b) check a ea b eb) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
-		| (MContent ela,MContent elb) -> compare_content ela elb			
+		| (MContent ela,MContent elb) -> compare_content ela elb
 		| (MAttr la,MAttr lb) -> compare_attr_list compare_content la lb ea eb
 		| _ -> diff "<content>" ea "<content>" eb
 		}
+		add_macro ma;
 	| (XComment a,XComment b) | (XData a,XData b) ->
 		// in case it's meaningful to compare them
 		check a ea b eb
@@ -184,22 +213,19 @@ function rec compare_elt(ea:elt,eb:elt) {
 	| (XConstr ca,XConstr cb) ->
 		match (ca,cb) {
 		| (CValue ea,CValue eb) | (CRaw ea, CRaw eb) ->
-			match (fst ea,fst eb) {
-			| (VConst (CString a),VConst (CString b)) -> if *data_meaningful then check a ea b eb;
-			| _ -> compare_expr ea eb
-			}
+			compare_expr ea eb (*data_meaningful)
 		| (CIf ea, CIf eb)
 		| (CElseIf ea, CElseIf eb)
 		| (CUse ea, CUse eb)
 		| (CEval ea, CEval eb) ->
-			compare_expr ea eb
+			compare_expr ea eb true
 		| (CFill a, CFill b) when a == b ->
 			()
 		| (CElse,CElse) | (CEnd,CEnd) ->
 			()
 		| (CForeach (a,ea1),CForeach (b,eb1)) | (CSet (a,ea1),CSet (b,eb1)) ->
 			check a ea b eb;
-			compare_expr ea1 eb1
+			compare_expr ea1 eb1 true
 		| _ ->
 			throw DiffElt(ea,eb)
 		}
@@ -209,6 +235,15 @@ function rec compare_elt(ea:elt,eb:elt) {
 }
 
 function rec compare_content(ela: elt list,elb : elt list) {
+	function is_null_elt(e) {
+		match fst e {
+		| XComment _ | XData _ -> !(*data_meaningful)
+		| XNode n -> n.n_ignore
+		| XConstr (CValue (VConst (CString _) _)
+		| XConstr (CRaw (VConst (CString _) _) -> !(*data_meaningful)
+		| _ -> false
+		}
+	}
 	match (ela,elb) {
 	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb
 	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb
@@ -269,12 +304,14 @@ function rec expr_str(e) {
 		"[" + String.concat "," (List.map expr_str el) + "]"
 	| VBool e ->
 		expr_str e
+	| VIgnore e ->
+		"ignore(" + expr_str e + ")"
 	}
 }
 
 function rec elt_str(e) {
 	match fst e {
-	| XNode n -> "<" + n.n_node + "..." 
+	| XNode n -> "<" + n.n_node + "..."
 	| XMacroCall (m,el) -> "$$" + m + "(...)"
 	| XMacroDef m -> "<macro name=\"" + m.m_name + "(" + String.concat "," m.m_args + ")\"..."
 	| XComment s -> "<!--"+s+"-->"
@@ -295,6 +332,23 @@ function rec elt_str(e) {
 		| CEnd -> "::end::"
 		}
 	}
+}
+
+function init(dbg,ml) {
+	debug := dbg;
+	macros := Map.empty();
+	function rec loop(ml) {
+		var retry = &[];
+		List.iter (function(m)
+			try add_macro m catch { MacroNotFound _ -> retry := m :: *retry }
+		) ml;
+		match *retry {
+		| [] -> ()
+		| m :: _ when List.length (*retry) == List.length ml -> add_macro m // error
+		| _ -> loop (*retry)
+		}
+	}
+	loop ml;
 }
 
 function rec compare(a,b,compile,io) {
@@ -322,16 +376,20 @@ function rec compare(a,b,compile,io) {
 	| _ ->
 		var ea = compile a;
 		var eb = compile b;
+		var old = *macros;
 		try  {
+			used_var_callback := (function(_,_) ());
 			data_meaningful := false;
 			compare_content ea eb
 		} catch {
 			| ExtraExpr e -> log io "%s extra %s" (pos_str e, str e expr_str)
 			| ExtraElt e -> log io "%s extra %s" (pos_str e, str e elt_str)
-			| ExtraAttr (a,e) -> log io "%s extra attribute %s in %s" (pos_str e,a,str e elt_str)
+			| ExtraAttr (a,e) -> log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str)
 			| DiffExpr (a,b) -> log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str)
 			| DiffElt (a,b) -> log io "%s %s should be %s" (pos_str b,str b elt_str, str a elt_str)
 			| Diff (a,b) -> log io "%s %s should be %s" (pos_str b,str a txt_str, str b txt_str)
-		}		
+			| MacroNotFound (m,p) -> log io "%s macro not found %s" (pos_str (m,p),m)
+		}
+		macros := old;
 	}
 }

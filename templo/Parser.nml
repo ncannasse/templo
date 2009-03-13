@@ -219,6 +219,7 @@ function rec parse_node(s,n,p1) {
 		n_repeat = None;
 		n_attrs = [];
 		n_content = None;
+		n_ignore = false;
 	};
 	cur := MAttributes;
 	var content, p2 = parse_node_attribs s n;
@@ -255,6 +256,9 @@ function rec parse_node_attribs(s,node) {
 			| None -> node.n_repeat := Some (v,e);
 			| Some _ -> error Message("Duplicate repeat") p
 			}
+		| [< (Keyword KIgnore,p); (DoubleDot,_) >] ->
+			if node.n_ignore then error Message("Duplicate ignore") p;
+			node.n_ignore := true;
 		}
 		cur := MAttributes;
 		parse_node_attribs s node
@@ -344,6 +348,10 @@ function rec parse_expr(s) {
 		make_unop Neg parse_expr(s) p
 	| [< (BracketOpen,p1); el = parse_expr_list s; (BracketClose,p2) >] ->
 		parse_expr_next s (VArrayDecl el, punion p1 p2)
+	| [< (Keyword KIgnore,p1); (ParentOpen,_); e = parse_expr s; (ParentClose,p2) >] ->
+		parse_expr_next s (VIgnore e, punion p1 p2)
+	| [< (Keyword KIgnore,p1); e = parse_expr s >] ->
+		(VIgnore e, punion p1 snd(e))
 	}
 }
 
