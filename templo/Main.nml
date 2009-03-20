@@ -52,6 +52,7 @@ try {
 	var paths = &[""];
 	var output = &"";
 	var target = &Templo.Neko.generate;
+	var compare_xml = &None;
 	var debug = &false;
 	var xml = &false;
 	var chk = Templo.Checker.init();
@@ -71,6 +72,11 @@ try {
 			| _ -> error ("Invalid comparison pattern : " + str);
 			}
 		}),"<file1@file2> : compare two files or directories structurally");
+		("-compare-xml",Args.String (function(cfg) {
+			var f = open_file (*paths) cfg;
+			compare_xml := Some (IO.read_all f);
+			IO.close_in f
+		}),"<config> : compare also XML files");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	// remove all macros that are also in files
@@ -95,7 +101,7 @@ try {
 				}
 			) el
 		}) macros);
-		Templo.Compare.init (*debug) macros;
+		Templo.Compare.init (*debug) (*compare_xml) macros;
 		Templo.Compare.compare a b (function(f) { var _,el,_ = compile f false; el }) IO.stdout
 	}) List.rev(*compares);
 	var datas = List.append macros files;
