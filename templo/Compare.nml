@@ -414,7 +414,7 @@ function rec compare(a,b,compile,io) {
 			| ExtraAttr (a,e) -> log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str)
 			| DiffExpr (a,b) -> log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str)
 			| DiffElt (a,b) -> log io "%s %s should be %s" (pos_str b,str b elt_str, str a elt_str)
-			| Diff (a,b) -> log io "%s %s should be %s" (pos_str b,str a txt_str, str b txt_str)
+			| Diff (a,b) -> log io "%s %s should be %s" (pos_str b,str b txt_str, str a txt_str)
 			| MacroNotFound (m,p) -> log io "%s macro not found %s" (pos_str (m,p),m)
 		}
 		macros := old;
