@@ -77,6 +77,9 @@ try {
 			compare_xml := Some (IO.read_all f);
 			IO.close_in f
 		}),"<config> : compare also XML files");
+		("--compare-both",Args.Void (function() {
+			Templo.Compare.original := true;
+		}),": display both files position in comparisons");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	// remove all macros that are also in files

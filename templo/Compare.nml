@@ -15,9 +15,9 @@
 open Lexer;
 open Templo.Ast;
 
-exception ExtraExpr : expr;
-exception ExtraElt : elt;
-exception ExtraAttr : (string,elt);
+exception ExtraExpr : (expr,pos);
+exception ExtraElt : (elt,pos);
+exception ExtraAttr : (string,elt,pos);
 exception DiffExpr : (expr,expr);
 exception DiffElt : (elt,elt);
 exception Diff : ((string,pos),(string,pos));
@@ -29,6 +29,7 @@ var macros = &Map.empty();
 var used_var_callback = &(function(_,_) ());
 var xml_config = &None;
 var is_xml = &false;
+var original = &false;
 
 function node_data_matters(n) {
 	match n {
@@ -68,13 +69,13 @@ function rec compare_attr_list(callb,node,ela,elb,ea,eb) {
 	| ((a,xa) :: ela, (b,xb) :: elb) ->
 		check a ea b eb;
 		var f = data (!is_text_attribute(node,a));
-		callb xa xb;
+		callb xa xb snd(ea) snd(eb);
 		f();
 		compare_attr_list callb node ela elb ea eb
 	| ([],(b,_) :: _) ->
-		throw ExtraAttr(b,eb);
+		throw ExtraAttr(b,eb,snd ea);
 	| ((a,_) :: _,[]) ->
-		throw ExtraAttr(a,ea);
+		throw ExtraAttr(a,ea,snd eb);
 	}
 }
 
@@ -87,7 +88,7 @@ function rec add_macro(m) {
 	var used = Hashtbl.create();
 	used_var_callback := (function(v,logic) if logic then Hashtbl.replace used v true);
 	match m.m_content {
-	| MContent c -> compare_content c c
+	| MContent c -> compare_content c c null_pos null_pos
 	| MAttr al ->
 		var e0 = (XData "ASSERT",null_pos);
 		compare_attr_list compare_content "" al al e0 e0
@@ -109,7 +110,8 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		match (eao,ebo) {
 		| (None, None) -> ()
 		| (Some ea, Some eb) -> compare_expr ea eb logic;
-		| (None, Some e) | (Some e, None) -> throw ExtraExpr(e)
+		| (None, Some e) -> throw ExtraExpr(e,snd ea)
+		| (Some e, None) -> throw ExtraExpr(e,snd eb)
 		}
 	| (VBinop (opa,ea1,ea2),VBinop (opb,eb1,eb2)) ->
 		if opa != opb then diff s_op(opa) ea s_op(opb) eb;
@@ -120,7 +122,7 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		compare_expr ea1 eb1 true
 	| (VCall (ea1,eal),VCall (eb1,ebl)) ->
 		compare_expr ea1 eb1 true;
-		compare_expr_list eal ebl true
+		compare_expr_list eal ebl snd(ea) snd(eb) true
 	| (VParent ea,VParent eb) ->
 		compare_expr ea eb logic
 	| (VField (ea1,fa),VField (eb1,fb)) ->
@@ -130,7 +132,7 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		compare_expr ea1 eb1 true;
 		compare_expr ea2 eb2 true;
 	| (VArrayDecl eal,VArrayDecl ebl) ->
-		compare_expr_list eal ebl true
+		compare_expr_list eal ebl snd(ea) snd(eb) true
 	| (VBool ea, VBool eb) ->
 		compare_expr ea eb true
 	| (VIgnore ea,VIgnore eb) ->
@@ -142,16 +144,16 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 	}
 }
 
-function rec compare_expr_list(ela,elb,logic) {
+function rec compare_expr_list(ela,elb,pa,pb,logic) {
 	match (ela,elb) {
 	| ([],[]) -> ()
 	| (ea :: ela, eb :: elb) ->
 		compare_expr ea eb logic;
-		compare_expr_list ela elb logic
+		compare_expr_list ela elb snd(ea) snd(eb) logic
 	| ([],eb :: _) ->
-		throw ExtraExpr(eb);
+		throw ExtraExpr(eb,pa);
 	| (ea :: _,[]) ->
-		throw ExtraExpr(ea);
+		throw ExtraExpr(ea,pb);
 	}
 }
 
@@ -161,9 +163,9 @@ function rec compare_elt(ea:elt,eb:elt) {
 		check na.n_node ea nb.n_node eb;
 		if na.n_ignore != nb.n_ignore then diff "::ignore" ea "::ignore" eb;
 		compare_attr_list compare_content na.n_node na.n_attributes nb.n_attributes ea eb;
-		compare_attr_list (function(ea,eb) compare_expr ea eb (*data_meaningful)) na.n_node na.n_attrs nb.n_attrs ea eb;
+		compare_attr_list (function(ea,eb,_,_) compare_expr ea eb (*data_meaningful)) na.n_node na.n_attrs nb.n_attrs ea eb;
 		function make_macro((m,p,c)) (XMacroCall m c,p);		
-		compare_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros);
+		compare_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros) snd(ea) snd(eb);
 		match (na.n_cond, nb.n_cond) {
 		| (None,None) -> ()
 		| (Some ea,Some eb) -> compare_expr ea eb true
@@ -180,7 +182,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		| (None,None) -> ()
 		| (Some ela,Some elb) ->
 			var f = data (node_data_matters na.n_node);
-			if !na.n_ignore then compare_content ela elb;
+			if !na.n_ignore then compare_content ela elb snd(ea) snd(eb);
 			f()
 		| _ -> diff "<content>" ea "<content>" eb
 		}
@@ -196,7 +198,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 			var t = &true;
 			margs := match *margs { [] -> assert() | p :: l -> t:= p; l };
 			var f = data (*t);
-			compare_content ela elb;
+			compare_content ela elb snd(ea) snd(eb);
 			f();
 		}) ela elb;
 	| (XMacroDef ma, XMacroDef mb) ->
@@ -206,7 +208,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
 		List.iter2 (function(a,b) check a ea b eb) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
-		| (MContent ela,MContent elb) -> compare_content ela elb
+		| (MContent ela,MContent elb) -> compare_content ela elb snd(ea) snd(eb)
 		| (MAttr la,MAttr lb) -> compare_attr_list compare_content "" la lb ea eb
 		| _ -> diff "<content>" ea "<content>" eb
 		}
@@ -215,7 +217,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		// in case it's meaningful to compare them
 		check a ea b eb
 	| (XCData ela,XCData elb) ->
-		compare_content ela elb
+		compare_content ela elb snd(ea) snd(eb)
 	| (XConstr ca,XConstr cb) ->
 		match (ca,cb) {
 		| (CValue ea,CValue eb) | (CRaw ea, CRaw eb) ->
@@ -240,7 +242,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 	}
 }
 
-function rec compare_content(ela: elt list,elb : elt list) {
+function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
 	function is_null_elt(e) {
 		match fst e {
 		| XComment _ | XData _ -> !(*data_meaningful)
@@ -251,16 +253,16 @@ function rec compare_content(ela: elt list,elb : elt list) {
 		}
 	}
 	match (ela,elb) {
-	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb
-	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb
+	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb snd(ea) pb
+	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb pa snd(eb)
 	| ([],[]) -> ()
 	| (ea :: ela, eb :: elb) ->
 		compare_elt ea eb;
-		compare_content ela elb
+		compare_content ela elb snd(ea) snd(eb)
 	| ([],eb :: _) ->
-		throw ExtraElt(eb);
+		throw ExtraElt(eb,pa);
 	| (ea :: _,[]) ->
-		throw ExtraElt(ea);
+		throw ExtraElt(ea,pb);
 	}
 }
 
@@ -404,18 +406,37 @@ function rec compare(a,b,compile,io) {
 		var ea = compile a;
 		var eb = compile b;
 		var old = *macros;
+		function original(p) {
+			if *original then log io "%s see other file" pos_str((0,p));
+		}
+		function makep(file) {
+			{ psource = file; pline = 1; pmin = 0; pmax = 0 }
+		}
 		try  {
 			used_var_callback := (function(_,_) ());
 			data_meaningful := false;
-			compare_content ea eb
+			compare_content ea eb makep(a) makep(b)
 		} catch {
-			| ExtraExpr e -> log io "%s extra %s" (pos_str e, str e expr_str)
-			| ExtraElt e -> log io "%s extra %s" (pos_str e, str e elt_str)
-			| ExtraAttr (a,e) -> log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str)
-			| DiffExpr (a,b) -> log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str)
-			| DiffElt (a,b) -> log io "%s %s should be %s" (pos_str b,str b elt_str, str a elt_str)
-			| Diff (a,b) -> log io "%s %s should be %s" (pos_str b,str b txt_str, str a txt_str)
-			| MacroNotFound (m,p) -> log io "%s macro not found %s" (pos_str (m,p),m)
+			| ExtraExpr (e,p) ->
+				log io "%s extra %s" (pos_str e, str e expr_str);
+				original p
+			| ExtraElt (e,p) ->
+				log io "%s extra %s" (pos_str e, str e elt_str);
+				original p
+			| ExtraAttr (a,e,p) ->
+				log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str);
+				original p;
+			| DiffExpr (a,b) -> 
+				log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str);
+				original snd(a)
+			| DiffElt (a,b) ->
+				log io "%s %s should be %s" (pos_str b,str b elt_str, str a elt_str);
+				original snd(a)
+			| Diff (a,b) ->
+				log io "%s %s should be %s" (pos_str b,str b txt_str, str a txt_str);
+				original snd(a)
+			| MacroNotFound (m,p) ->
+				log io "%s macro not found %s" (pos_str (m,p),m)
 		}
 		macros := old;
 	}
