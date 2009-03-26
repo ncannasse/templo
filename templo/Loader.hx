@@ -85,10 +85,12 @@ class Loader {
 	function compileTemplate( path:String ) : Void {
 		var tmpFile = tmpFileId(path);
 		if( neko.FileSystem.exists(tmpFile) ) {
-			var macroStamp = if( neko.FileSystem.exists(BASE_DIR+MACROS) ) neko.FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() else null;
-			var sourceStamp = neko.FileSystem.stat(BASE_DIR+path).mtime.getTime();
+			var macroStamp = if( neko.FileSystem.exists(BASE_DIR+MACROS) )
+				neko.FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() else null;
+			var sourceStamp = if( neko.FileSystem.exists(BASE_DIR+path) )
+				neko.FileSystem.stat(BASE_DIR+path).mtime.getTime() else null;
 			var stamp = neko.FileSystem.stat(tmpFile).mtime.getTime();
-			if( stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp) )
+			if( sourceStamp == null || (stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp)) )
 				return;
 		}
 		var result = 0;
@@ -350,7 +352,7 @@ class Loader {
 function _hxtemplo_array_get($a, $i) {
 	return $a[$i];
 }
-		
+
 function _hxtemplo_substr($s, $p) {
 	if(is_string($s)) {
 		return _hx_substr($s, $p[0], count($p) > 1 ? $p[1] : null);
