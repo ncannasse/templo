@@ -168,7 +168,7 @@ class Loader {
 				index : 0,
 				number : 1,
 				first : true,
-				last : false,
+				last : size == 1,
 				odd : true,
 				even : false,
 				size : size,
