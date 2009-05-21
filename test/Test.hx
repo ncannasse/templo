@@ -2,7 +2,7 @@ enum E {
 	A;
 	B;
 	C;
-	D;
+	D( v : Int );
 	E;
 	F;
 }
@@ -15,7 +15,7 @@ class Test {
 		try neko.FileSystem.deleteFile("test.mtt.n") catch( e : Dynamic ) {};
 		var t = new templo.Loader("test.mtt");
 		//trace( t.execute({ values : -1...7 }) );
-		trace( t.execute({ values : [A,B,C,D,E,F] }) );
+		trace( t.execute({ values : [A,B,C,D(55),E,F] }) );
 	}
 
 }

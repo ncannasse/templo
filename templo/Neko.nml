@@ -300,8 +300,15 @@ function rec ast_content(acc,el) {
 					}
 				}
 				var cases, el = loop next el;
-				var eindex = (ECall (ident "@eindex" p) [ast_expr(e)],p);
-				var eswitch = (ESwitch eindex cases Some(block List.rev(def)),p);
+				var etmp = ident "@tmp" p;
+				var eswitch = block [
+					(EVars [
+						("@tmp",Some ast_expr(e));
+						("@idx",Some (ECall (ident "@eindex" p) [etmp],p));
+						("args",Some (ECall (ident "@eargs" p) [etmp],p));
+					],p);
+					(ESwitch (ident "@idx" p) cases Some(block List.rev(def)),p);
+				];
 				ast_content (eswitch :: acc) el
 			| CCase n ->
 				var en = (EConst Int(n), p);
@@ -402,6 +409,9 @@ function generate_file(output,debug,(file,content,imports)) {
 		}
 		@eindex = function(v) {			
 			return if( $typeof(v) == $tint ) v else v.index;
+		}
+		@eargs = function(v) {
+			return if( $typeof(v) == $tint || v.args == null ) @array.new() else @array.new1(v.args,$asize(v.args));
 		}
 	" ({ psource = "<boot>"; pline = 1; pmin = 0; pmax = 0; });
 	// end-boot-sequence

@@ -369,7 +369,9 @@ function rec check_rec(chk,e) {
 			CIf (make_bool chk e)
 		| CSwitch e ->
 			chk.stack := cur :: chk.stack;
-			CSwitch (check_expr chk e)
+			var e = check_expr chk e;
+			add_variable chk "args" snd(e);
+			CSwitch e
 		| CElse ->
 			match chk.stack {
 			| (CIf _,_,_) :: stack | (CElseIf _,_,_) :: stack -> chk.stack := cur :: stack;
