@@ -338,6 +338,8 @@ function rec elt_str(e) {
 		| CSet (v,e) -> "::set "+v+" = "+expr_str e+"::"
 		| CEval e -> "::eval "+expr_str e+"::"
 		| CEnd -> "::end::"
+		| CSwitch e -> "::switch "+expr_str e+"::"
+		| CCase n -> if n == -1 then "::case::" else "::case "+n+"::"
 		}
 	}
 }

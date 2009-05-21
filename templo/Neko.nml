@@ -288,6 +288,24 @@ function rec ast_content(acc,el) {
 				ast_content (ast_expr(e) :: acc) el
 			| CEnd ->
 				(acc,None,el)
+			| CSwitch e ->				
+				var def, next, el = ast_content [] el;
+				function rec loop(next,el) {
+					match next {
+					| None -> ([], el)
+					| Some e ->
+						var content, next, el = ast_content [] el;
+						var cases, el = loop next el;
+						((e, block List.rev(content)) :: cases, el)
+					}
+				}
+				var cases, el = loop next el;
+				var eindex = (ECall (ident "@eindex" p) [ast_expr(e)],p);
+				var eswitch = (ESwitch eindex cases Some(block List.rev(def)),p);
+				ast_content (eswitch :: acc) el
+			| CCase n ->
+				var en = (EConst Int(n), p);
+				(acc,Some en,el)
 			}
 		| _ ->
 			ast_content (ast_element e :: acc) el
@@ -381,6 +399,9 @@ function generate_file(output,debug,(file,content,imports)) {
 			data = @replace(data, \">\", \"&gt;\");
 			data = @replace(data, \"\\\"\", \"&quot;\");
 			return data;
+		}
+		@eindex = function(v) {			
+			return if( $typeof(v) == $tint ) v else v.index;
 		}
 	" ({ psource = "<boot>"; pline = 1; pmin = 0; pmax = 0; });
 	// end-boot-sequence

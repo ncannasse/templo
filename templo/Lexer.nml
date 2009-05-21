@@ -30,6 +30,7 @@ type keyword {
 	KCatch;
 	KDefault;
 	KSwitch;
+	KCase;
 	KIgnore;
 }
 
@@ -105,6 +106,7 @@ function s_keyword(k) {
 	| KCatch -> "catch"
 	| KDefault -> "default"
 	| KSwitch -> "switch"
+	| KCase -> "case"
 	| KIgnore -> "ignore"
 	}
 }
@@ -145,7 +147,7 @@ function dict(f,l) {
 }
 
 var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KDo;KFor;KBreak;KContinue;
-	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch;KIgnore];
+	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch;KCase;KIgnore];
 
 var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
 	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod];

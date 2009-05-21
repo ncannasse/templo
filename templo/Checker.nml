@@ -260,6 +260,7 @@ function rec check_content(chk,el) {
 		| CForeach _ -> "foreach"
 		| CFill _ -> "fill"
 		| CUse _ -> "use"
+		| CSwitch _ | CCase _ -> "switch"
 		| _ -> "???"
 		}
 		error ("Unclosed " + str) p
@@ -366,6 +367,9 @@ function rec check_rec(chk,e) {
 		| CIf e ->
 			chk.stack := cur :: chk.stack;
 			CIf (make_bool chk e)
+		| CSwitch e ->
+			chk.stack := cur :: chk.stack;
+			CSwitch (check_expr chk e)
 		| CElse ->
 			match chk.stack {
 			| (CIf _,_,_) :: stack | (CElseIf _,_,_) :: stack -> chk.stack := cur :: stack;
@@ -378,6 +382,20 @@ function rec check_rec(chk,e) {
 			| _ -> error "Unexpected elseif" snd(e)
 			}
 			CElseIf (make_bool chk ex)
+		| CCase v ->
+			var v = match chk.stack {
+			| (CSwitch _,_,_) :: stack ->
+				chk.stack := stack;
+				if v == -1 then 0 else v
+			| (CCase v2,_,_) :: stack ->
+				chk.stack := stack;
+				if v == -1 then (v2 + 1) else if v <= v2 then error "Case integer values must be ordered" snd(e) else v
+			| _ ->
+				error "Unexpected case" snd(e)
+			}
+			var c = CCase v;
+			chk.stack := (c,snd e,chk.vars) :: chk.stack;
+			c
 		| CForeach (k,ex) ->
 			chk.stack := cur :: chk.stack;
 			var ex = check_expr chk ex;

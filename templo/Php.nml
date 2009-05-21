@@ -350,6 +350,10 @@ function gen_const_expr(ctx,e) {
 		php(ctx,";");
 	| CEnd ->
 		close_block(ctx);
+	| CSwitch e ->
+		assert()
+	| CCase n ->
+		assert()
 	}
 }
 

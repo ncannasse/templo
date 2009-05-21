@@ -87,6 +87,8 @@ type construct {
 	CSet : (string,expr);
 	CEval : expr;
 	CEnd;
+	CSwitch : expr;
+	CCase : int;
 }
 
 type node {

@@ -138,6 +138,16 @@ function rec parse_construct(s) {
 		| [< >] -> CIf e
 		}
 	| [< (Keyword KElse,_) >] -> CElse
+	| [< (Keyword KSwitch,_); e = parse_expr s >] -> CSwitch e
+	| [< (Keyword KCase,_) >] ->
+		match s {
+		| [< e = parse_expr s >] ->
+			match fst e {
+			| VConst (CInt i) when i >= 0 -> CCase i
+			| _ -> error Message("Case expression should be a constant positive integer") snd(e)
+			}
+		| [< >] -> CCase (-1)
+		}
 	| [< (Ident "elseif",_); e = parse_expr s >] -> CElseIf e
 	| [< (Ident "foreach",_); (Ident k,_); e = parse_expr s >] -> CForeach k e
 	| [< (Ident "fill",_); (Ident k,_); >] -> CFill k
