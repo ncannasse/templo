@@ -2,5 +2,5 @@
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
-    <version name="2.1.1">Added -compare for structural comparisons</version>
+    <version name="2.2">Added ::switch</version>
 </project>
