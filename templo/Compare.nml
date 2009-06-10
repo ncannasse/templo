@@ -243,12 +243,16 @@ function rec compare_elt(ea:elt,eb:elt) {
 }
 
 function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
-	function is_null_elt(e) {
+	function is_null_elt(e) {		
 		match fst e {
 		| XComment _ | XData _ -> !(*data_meaningful)
 		| XNode n -> n.n_ignore
-		| XConstr (CValue (VConst (CString _) _)
-		| XConstr (CRaw (VConst (CString _) _) -> !(*data_meaningful)
+		| XConstr (CValue e)
+		| XConstr (CRaw e) -> 
+			match fst e {
+			| VConst (CString _) -> !(*data_meaningful)
+			| _ -> false
+			}
 		| _ -> false
 		}
 	}
