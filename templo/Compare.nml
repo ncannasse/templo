@@ -132,7 +132,7 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		compare_expr ea1 eb1 true;
 		compare_expr ea2 eb2 true;
 	| (VArrayDecl eal,VArrayDecl ebl) ->
-		compare_expr_list eal ebl snd(ea) snd(eb) true
+		compare_expr_list eal ebl snd(ea) snd(eb) logic
 	| (VBool ea, VBool eb) ->
 		compare_expr ea eb true
 	| (VIgnore ea,VIgnore eb) ->
