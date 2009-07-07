@@ -276,7 +276,7 @@ function log(io,fmt:'a format,p : 'a) {
 }
 
 function pos_str((_,p)) {
-	if *debug then "" else p.psource + ":" + p.pline + ": :"
+	if *debug then "" else p.psource + ":" + p.pline + ":"
 }
 
 function str(e,f) {
@@ -384,9 +384,9 @@ function rec compare(a,b,compile,io) {
 	var is_b = try Some (Sys.is_directory b) catch { _ -> None };
 	match (is_a, is_b) {
 	| (None, Some _) ->
-		log io "%s is no longer useful" b;
+		log io "%s:0: is no longer useful" b;
 	| (Some _, None) ->
-		log io "%s is missing" b;
+		log io "%s:0: %s is missing" (a,b);
 	| (None, None) ->
 		log io "Both '%s' and '%s' are missing" (a,b);
 	| (Some true,Some true) ->
