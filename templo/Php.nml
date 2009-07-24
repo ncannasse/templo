@@ -367,7 +367,7 @@ function rec gen_macro_params(ctx,sl) {
 	match sl {
 	| [] -> 
 		php(ctx, "$container, $ctx, $tpl");
-	| s :: sl ->
+	| (s,_) :: sl ->
 		ctx.macro_locals := s :: ctx.macro_locals;
 		php(ctx,"$"+s+", ");
 		gen_macro_params(ctx,sl);

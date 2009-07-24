@@ -27,6 +27,7 @@ type macro_kind {
 
 type macro_type {
 	margs : int;
+	moptargs : int;
 	mkind : macro_kind;
 	mfile : macro_file option;
 }
@@ -93,8 +94,15 @@ function add_macro(chk,m,file) {
 		| MContent el -> (try { List.iter loop el; MKValue; } catch { Exit -> MKContent })
 		| MAttr _ -> MKAttributes
 	}
+	function rec loop(al) {
+		match al {
+		| [] -> 0
+		| (_,opt) :: l -> (if opt then 1 else 0) + loop l
+		}
+	}
 	var md = {
 		margs = List.length m.m_args;
+		moptargs = loop m.m_args;
 		mkind = kind;
 		mfile = file;
 	};
@@ -169,7 +177,12 @@ function rec make_bool(chk,e) {
 
 function rec check_macro(chk,name,kind,params,pos) {
 	var m = (try Map.find chk.macros name catch { Not_found -> error ("No such macro "+name) pos });
-	if List.length params != m.margs then error ("Macro "+name+" needs "+m.margs+" parameters") pos;
+	var extra = m.margs - List.length params;
+	if extra < 0 || extra > m.moptargs then error ("Macro "+name+" needs "+(if m.moptargs > 0 then m.margs - m.moptargs + "-" else "") + m.margs+" parameters") pos;
+	function rec make_nulls(n) {
+		if n == 0 then [] else [(XData "null",pos)] :: make_nulls (n-1)
+	}
+	var params = List.concat [params;make_nulls extra];
 	match m.mfile {
 	| None -> ()
 	| Some f -> f.used := true
@@ -332,7 +345,7 @@ function rec check_rec(chk,e) {
 		}
 		add_macro chk m None;
 		var old = chk.vars;
-		List.iter (function(v) add_variable chk v snd(e)) m.m_args;
+		List.iter (function((v,_)) add_variable chk v snd(e)) m.m_args;
 		var m = {
 			m_name = m.m_name;
 			m_args = m.m_args;

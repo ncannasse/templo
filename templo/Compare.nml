@@ -93,8 +93,8 @@ function rec add_macro(m) {
 		var e0 = (XData "ASSERT",null_pos);
 		compare_attr_list compare_content "" al al e0 e0
 	}
-	var params = List.map (function(p) Hashtbl.exists used p) m.m_args;
-	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map (function(p) p + ":" + if Hashtbl.exists used p then "logic" else "text") m.m_args));
+	var params = List.map (function((p,_)) Hashtbl.exists used p) m.m_args;
+	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map (function((p,opt)) (if opt then "?" else "") + p + ":" + if Hashtbl.exists used p then "logic" else "text") m.m_args));
 	macros := Map.add (*macros) m.m_name params;
 }
 
@@ -206,7 +206,8 @@ function rec compare_elt(ea:elt,eb:elt) {
 		var la = List.length ma.m_args;
 		var lb = List.length mb.m_args;
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
-		List.iter2 (function(a,b) check a ea b eb) ma.m_args mb.m_args;
+		function ostr(o) if o then "optional" else "not-optional";
+		List.iter2 (function((a,oa),(b,ob)) { check (ostr oa) ea (ostr ob) eb; check a ea b eb; }) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
 		| (MContent ela,MContent elb) -> compare_content ela elb snd(ea) snd(eb)
 		| (MAttr la,MAttr lb) -> compare_attr_list compare_content "" la lb ea eb
@@ -325,7 +326,7 @@ function rec elt_str(e) {
 	match fst e {
 	| XNode n -> "<" + n.n_node + "..."
 	| XMacroCall (m,el) -> "$$" + m + "(...)"
-	| XMacroDef m -> "<macro name=\"" + m.m_name + "(" + String.concat "," m.m_args + ")\"..."
+	| XMacroDef m -> "<macro name=\"" + m.m_name + "(" + String.concat "," (List.map (function((a,o)) if o then "?" + a else a) m.m_args) + ")\"..."
 	| XComment s -> "<!--"+s+"-->"
 	| XData s -> s
 	| XCData _ -> "<![CDATA[...]]>"

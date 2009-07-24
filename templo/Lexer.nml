@@ -64,6 +64,7 @@ type token {
 	BracketClose;
 	Op : op;
 	Unop : unop;
+	Question;
 	// eof
 	Eof;
 }
@@ -137,6 +138,7 @@ function s_token(t) {
 	| NodeContent b -> if b then ">" else "/>"
 	| Op op -> s_op op
 	| Unop op -> s_unop op
+	| Question -> "?"
 	| Quote b -> if b then "\"" else "'"
 	| Eof -> "<eof>"
 	}
@@ -322,6 +324,7 @@ expr := Lexer.build [
 	(")", function(l) { mk l ParentClose });
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
+	("\\?", function(l) mk l Question);
 	("[-+*/=&|^!<>%]+", function(l) {
 		var str = Lexer.current l;
 		var op = try Op (Map.find ops str) catch {

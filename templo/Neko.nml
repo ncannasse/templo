@@ -175,7 +175,7 @@ function rec ast_element(e) {
 			| MContent c -> ast_block c
 			| MAttr a -> block List.concat(List.map make_attr(p) a)
 		};
-		var emacro = (EFunction ("@buf" :: "@context" :: m.m_args) ef,p);
+		var emacro = (EFunction ("@buf" :: "@context" :: List.map fst m.m_args) ef,p);
 		macros := (EBinop "=" (macro_name m.m_name p) emacro,p) :: (*macros);
 		(EBlock [],p)
 	| XComment c ->

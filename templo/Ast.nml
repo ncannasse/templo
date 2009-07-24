@@ -109,7 +109,7 @@ type macro_content {
 
 type macro {
 	m_name : string;
-	m_args : string list;
+	m_args : (string,bool) list;
 	m_content : macro_content;
 }
 

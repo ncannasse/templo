@@ -168,7 +168,7 @@ function rec parse_macro_def(s,p1) {
 	| [< (Ident "name",_); (Op OpAssign,_); (Quote b,_); (Ident name,_) >] ->
 		cur := MExpr;
 		var params = match s {
-		| [< (ParentOpen,_) >] -> parse_macro_args s
+		| [< (ParentOpen,_) >] -> parse_macro_args s false
 		}
 		cur := MAttributes;
 		match s {
@@ -209,13 +209,14 @@ function rec parse_macro_def(s,p1) {
 	(XMacroDef m, punion p1 p2)
 }
 
-function rec parse_macro_args(s) {
+function rec parse_macro_args(s,opt) {
 	match s {
 	| [< (ParentClose,_) >] -> []
+	| [< (Question,_); >] -> parse_macro_args s true
 	| [< (Ident i,_) >] ->
 		match s {
-		| [< (Comma,_) >] -> i :: parse_macro_args s
-		| [< (ParentClose,_) >] -> [i]
+		| [< (Comma,_) >] -> (i,opt) :: parse_macro_args s opt
+		| [< (ParentClose,_) >] -> [(i,opt)]
 		}
 	}
 }
