@@ -226,6 +226,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		| (CIf ea, CIf eb)
 		| (CElseIf ea, CElseIf eb)
 		| (CUse ea, CUse eb)
+		| (CSwitch ea, CSwitch eb)
 		| (CEval ea, CEval eb) ->
 			compare_expr ea eb true
 		| (CFill a, CFill b) when a == b ->
@@ -234,7 +235,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 			()
 		| (CForeach (a,ea1),CForeach (b,eb1)) | (CSet (a,ea1),CSet (b,eb1)) ->
 			check a ea b eb;
-			compare_expr ea1 eb1 true
+			compare_expr ea1 eb1 true			
 		| _ ->
 			throw DiffElt(ea,eb)
 		}
