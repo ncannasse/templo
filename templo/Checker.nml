@@ -383,6 +383,7 @@ function rec check_rec(chk,e) {
 		| CSwitch e ->
 			chk.stack := cur :: chk.stack;
 			var e = check_expr chk e;
+			if !(List.mem "args" chk.vars) then add_variable chk "args" snd(e);
 			CSwitch e
 		| CElse ->
 			match chk.stack {
