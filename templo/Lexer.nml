@@ -322,6 +322,8 @@ expr := Lexer.build [
 	(",", function(l) { mk l Comma });
 	("(", function(l) { mk l ParentOpen });
 	(")", function(l) { mk l ParentClose });
+	("{", function(l) { mk l BraceOpen });
+	("}", function(l) { mk l BraceClose });
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
 	("\\?", function(l) mk l Question);

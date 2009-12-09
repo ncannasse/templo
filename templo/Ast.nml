@@ -69,6 +69,7 @@ type expr_def {
 	VArrayDecl : expr list;
 	VBool : expr;
 	VIgnore : expr;
+	VIgnoreExpr : expr;
 }
 
 type expr = (expr_def,pos)

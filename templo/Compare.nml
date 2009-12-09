@@ -139,6 +139,8 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		var f = data false;
 		compare_expr ea eb false;
 		f();
+	| (VIgnoreExpr ea,VIgnoreExpr eb) ->
+		()
 	| _ ->
 		throw DiffExpr(ea,eb)
 	}
@@ -236,6 +238,8 @@ function rec compare_elt(ea:elt,eb:elt) {
 		| (CForeach (a,ea1),CForeach (b,eb1)) | (CSet (a,ea1),CSet (b,eb1)) ->
 			check a ea b eb;
 			compare_expr ea1 eb1 true			
+		| (CCase x,CCase y) when x == y ->
+			()
 		| _ ->
 			throw DiffElt(ea,eb)
 		}
@@ -319,7 +323,9 @@ function rec expr_str(e) {
 	| VBool e ->
 		expr_str e
 	| VIgnore e ->
-		"ignore(" + expr_str e + ")"
+		"ignore " + expr_str e
+	| VIgnoreExpr e ->
+		"ignore {" + expr_str e + "}"
 	}
 }
 
