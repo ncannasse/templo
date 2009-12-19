@@ -59,7 +59,7 @@ try {
 	var macros = &[];
 	var compares = &[];
 	var decl = [
-		("-cp",Args.String (function(p) paths := p :: *paths),"<dir> : add file search path");
+		("-cp",Args.String (function(p) paths := complete_path p :: *paths),"<dir> : add file search path");
 		("-output",Args.String (function(o) output := complete_path o),"<dir> : specify output directory");
 		("-macros",Args.String (function(f) macros := f :: *macros),"<file> : add macro definition file");
 		("-php",Args.Void (function() target := Templo.Php.generate),": use php output");
