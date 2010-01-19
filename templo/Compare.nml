@@ -421,7 +421,7 @@ function rec compare(a,b,compile,io) {
 		var eb = compile b;
 		var old = *macros;
 		function original(p) {
-			if *original then log io "%s see other file" pos_str((0,p));
+			if *original then log io "%s |      original file" pos_str((0,p));
 		}
 		function makep(file) {
 			{ psource = file; pline = 1; pmin = 0; pmax = 0 }
