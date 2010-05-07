@@ -88,7 +88,7 @@ function rec add_macro(m) {
 	var used = Hashtbl.create();
 	used_var_callback := (function(v,logic) if logic then Hashtbl.replace used v true);
 	match m.m_content {
-	| MContent c -> compare_content c c null_pos null_pos
+	| MContent c -> compare_gram_content c c null_pos null_pos
 	| MAttr al ->
 		var e0 = (XData "ASSERT",null_pos);
 		compare_attr_list compare_content "" al al e0 e0
@@ -167,7 +167,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		compare_attr_list compare_content na.n_node na.n_attributes nb.n_attributes ea eb;
 		compare_attr_list (function(ea,eb,_,_) compare_expr ea eb (*data_meaningful)) na.n_node na.n_attrs nb.n_attrs ea eb;
 		function make_macro((m,p,c)) (XMacroCall m c,p);		
-		compare_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros) snd(ea) snd(eb);
+		compare_gram_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros) snd(ea) snd(eb);
 		match (na.n_cond, nb.n_cond) {
 		| (None,None) -> ()
 		| (Some ea,Some eb) -> compare_expr ea eb true
@@ -184,7 +184,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		| (None,None) -> ()
 		| (Some ela,Some elb) ->
 			var f = data (node_data_matters na.n_node);
-			if !na.n_ignore then compare_content ela elb snd(ea) snd(eb);
+			if !na.n_ignore then compare_gram_content ela elb snd(ea) snd(eb);
 			f()
 		| _ -> diff "<content>" ea "<content>" eb
 		}
@@ -200,7 +200,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 			var t = &true;
 			margs := match *margs { [] -> assert() | p :: l -> t:= p; l };
 			var f = data (*t);
-			compare_content ela elb snd(ea) snd(eb);
+			compare_gram_content ela elb snd(ea) snd(eb);
 			f();
 		}) ela elb;
 	| (XMacroDef ma, XMacroDef mb) ->
@@ -211,7 +211,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		function ostr(o) if o then "optional" else "not-optional";
 		List.iter2 (function((a,oa),(b,ob)) { check (ostr oa) ea (ostr ob) eb; check a ea b eb; }) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
-		| (MContent ela,MContent elb) -> compare_content ela elb snd(ea) snd(eb)
+		| (MContent ela,MContent elb) -> compare_gram_content ela elb snd(ea) snd(eb)
 		| (MAttr la,MAttr lb) -> compare_attr_list compare_content "" la lb ea eb
 		| _ -> diff "<content>" ea "<content>" eb
 		}
@@ -220,7 +220,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		// in case it's meaningful to compare them
 		check a ea b eb
 	| (XCData ela,XCData elb) ->
-		compare_content ela elb snd(ea) snd(eb)
+		compare_gram_content ela elb snd(ea) snd(eb)
 	| (XConstr ca,XConstr cb) ->
 		match (ca,cb) {
 		| (CValue ea,CValue eb) | (CRaw ea, CRaw eb) ->
@@ -245,6 +245,54 @@ function rec compare_elt(ea:elt,eb:elt) {
 		}
 	| _ ->
 		throw DiffElt(ea,eb)
+	}
+}
+
+function rec compare_gram_content(ela,elb,pa,pb) {
+	try
+		compare_content ela elb pa pb
+	catch {
+		DiffExpr (e1,e2) ->
+			function collect_vars(el) {
+				var vars = &Map.empty();
+				List.iter (function(e) {
+					match fst e {
+					| XData _ -> ()
+					| XConstr (CValue e) ->
+						match fst e {
+						| VIdent i | VVar i -> vars := Map.add (*vars) i e;
+						| _ -> throw Exit
+						}
+					| XComment _ | XMacroCall _ | XMacroDef _ | XNode _ | XCData _ | XConstr _ -> throw Exit
+					}
+				}) el;
+				*vars;
+			}
+			/*
+				If the two flows contain only text and simple vars, assume that
+				it's grammatical text and that the variables order has no meaning
+				wrt comparison
+			*/
+			try {
+				var v1 = &(collect_vars ela);
+				var v2 = &(collect_vars elb);
+				Map.iter (function(v,_) {
+					if Map.exists (*v2) v then {
+						v2 := Map.remove (*v2) v;
+						v1 := Map.remove (*v1) v;
+					}
+				}) (*v1);				
+				Map.iter (function(_,e1) {
+					Map.iter (function(_,e2) throw DiffExpr(e1,e2)) (*v2);
+					throw ExtraExpr(e1,pb);
+				}) (*v1);
+				Map.iter (function(_,e2) {
+					Map.iter (function(_,e1) throw DiffExpr(e1,e2)) (*v1);
+					throw ExtraExpr(e2,pa);
+				}) (*v2);
+			} catch {
+				Exit -> throw DiffExpr(e1,e2)
+			}
 	}
 }
 
@@ -393,14 +441,18 @@ function rec compare(a,b,compile,io) {
 	match (is_a, is_b) {
 	| (None, Some _) ->
 		log io "%s:0: is no longer useful" b;
+		true
 	| (Some _, None) ->
 		log io "%s:0: %s is missing" (a,b);
+		true
 	| (None, None) ->
 		log io "Both '%s' and '%s' are missing" (a,b);
+		true		
 	| (Some true,Some true) ->
 		var files_a = Sys.read_directory a;
 		var files_b = Sys.read_directory b;
 		var files = List.fold (function(acc,e) if List.mem e acc then acc else e :: acc) files_b files_a;
+		var found = &false;
 		List.iter (function(f) {
 			is_xml := false;
 			var cmp = match Sys.extension(f) {
@@ -412,10 +464,12 @@ function rec compare(a,b,compile,io) {
 					}
 				| _ -> false // skip other files
 			};
-			if cmp then compare (a+"/"+f) (b+"/"+f) compile io
+			if cmp then found := compare (a+"/"+f) (b+"/"+f) compile io || *found;
 		}) files;
+		*found
 	| (Some true,Some false) | (Some false,Some true) ->
-		Templo.Compare.log IO.stdout "'%s' and '%s' are not both files or directories" (a,b)
+		Templo.Compare.log IO.stdout "'%s' and '%s' are not both files or directories" (a,b);
+		true
 	| _ ->
 		var ea = compile a;
 		var eb = compile b;
@@ -429,7 +483,7 @@ function rec compare(a,b,compile,io) {
 		try  {
 			used_var_callback := (function(_,_) ());
 			data_meaningful := false;
-			compare_content ea eb makep(a) makep(b)
+			compare_gram_content ea eb makep(a) makep(b)
 		} catch {
 			| ExtraExpr (e,p) ->
 				log io "%s extra %s" (pos_str e, str e expr_str);
@@ -453,5 +507,6 @@ function rec compare(a,b,compile,io) {
 				log io "%s macro not found %s" (pos_str (m,p),m)
 		}
 		macros := old;
+		true
 	}
 }
