@@ -105,7 +105,8 @@ try {
 			) el
 		}) macros);
 		Templo.Compare.init (*debug) (*compare_xml) macros;
-		Templo.Compare.compare a b (function(f) { var _,el,_ = compile f false; el }) IO.stdout
+		if !(Templo.Compare.compare a b (function(f) { var _,el,_ = compile f false; el }) IO.stdout) then
+			IO.printf IO.stdout "No files were compared in '%s' and '%s'" (a,b);
 	}) List.rev(*compares);
 	var datas = List.append macros files;
 	(*target) (*output) (*debug) datas;
