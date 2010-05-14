@@ -62,7 +62,7 @@ function normalize_name(s) {
 			match String.get s i {
 			| c when List.mem c ['\\'; '/'; ':'; '.'; '-'] ->
 				Buffer.add b "__"
-			| c -> 
+			| c ->
 				Buffer.add_char b c
 			};
 			loop (i+1)
@@ -150,7 +150,7 @@ function rec gen_ast_expr(ctx,e) {
 	| VIdent "__content__" -> php ctx (tpl(ctx) + "->content")
 	| VIdent i -> php(ctx,var_ctx(ctx,i))
 	| VVar v -> php(ctx,var_ctx(ctx,v))
-	| VIf (e1,e2,e3) -> 
+	| VIf (e1,e2,e3) ->
 		gen_ast_expr(ctx, e1);
 		php(ctx," ? ");
 		gen_ast_expr(ctx, e2);
@@ -158,10 +158,10 @@ function rec gen_ast_expr(ctx,e) {
 		(match e3 {
 		| Some e ->
 			gen_ast_expr(ctx, e);
-		| _ -> 
+		| _ ->
 			php(ctx,"null");
 		});
-	| VBinop (op,e1,e2) -> 
+	| VBinop (op,e1,e2) ->
 		match op {
 		| OpAdd ->
 			php(ctx,"_hxtemplo_add(");
@@ -180,26 +180,26 @@ function rec gen_ast_expr(ctx,e) {
 			if pref then php(ctx,"++");
 			gen_ast_expr(ctx,e);
 			if !pref then php(ctx,"++");
-		| Decrement -> 
+		| Decrement ->
 			if pref then php(ctx,"--");
 			gen_ast_expr(ctx,e);
 			if !pref then php(ctx,"--");
-		| Not -> 
+		| Not ->
 			php(ctx,"!");
 			gen_ast_expr(ctx,e);
-		| Neg -> 
+		| Neg ->
 			php(ctx,"-");
 			gen_ast_expr(ctx,e);
 		}
-	| VCall (e,el) -> 
+	| VCall (e,el) ->
 		match fst e {
-		| VField (e,v) -> 
+		| VField (e,v) ->
 			match v {
-			| v when List.mem v 
+			| v when List.mem v
 					["cca"; "charAt"; "charCodeAt"; "indexOf"; "lastIndexOf";
-					 "split"; "substr"; "toLowerCase"; "toUpperCase"; "toString"] -> 
+					 "split"; "substr"; "toLowerCase"; "toUpperCase"; "toString"] ->
 				gen_indirect_method ctx v e el
-			| v -> 
+			| v ->
 				gen_ast_expr(ctx,e);
 				php(ctx,"->"+v+"(");
 				ctx.call_level := ctx.call_level + 1;
@@ -215,15 +215,15 @@ function rec gen_ast_expr(ctx,e) {
 			ctx.call_level := ctx.call_level - 1;
 			php(ctx,")");
 		}
-	| VParent e -> 
+	| VParent e ->
 		php(ctx,"(");
 		gen_ast_expr(ctx,e);
 		php(ctx,")");
-	| VField ((VIdent "repeat",_),k) -> 
-		php(ctx, repeater(k))	
-	| VField (e,v) -> 
+	| VField ((VIdent "repeat",_),k) ->
+		php(ctx, repeater(k))
+	| VField (e,v) ->
 		match v {
-		| "length" -> 
+		| "length" ->
 			php(ctx,"_hxtemplo_length(");
 			gen_ast_expr(ctx,e);
 			php(ctx,")");
@@ -238,7 +238,7 @@ function rec gen_ast_expr(ctx,e) {
 			gen_ast_expr(ctx,e1);
 			php(ctx,",");
 			gen_ast_expr(ctx,e2);
-			php(ctx,")");		
+			php(ctx,")");
 		| _ ->
 			gen_ast_expr(ctx,e1);
 			php(ctx,"[");
@@ -266,7 +266,7 @@ function rec gen_ast_expr(ctx,e) {
 
 function rec gen_ast_expr_params(ctx,el) {
 	match el {
-	| [] -> 
+	| [] ->
 		()
 	| e :: [] ->
 		gen_ast_expr(ctx,e);
@@ -303,18 +303,18 @@ function gen_foreach(ctx,v,e) {
 function gen_const_expr(ctx,e) {
 	match e {
 	| CValue e ->
-		if ctx.call_level == 0 then 
+		if ctx.call_level == 0 then
 			php(ctx, tpl(ctx)+"->buf .= ");
 		php(ctx, "_hxtemplo_string(");
 		gen_ast_expr(ctx,e);
 		php(ctx, ")"); // TODO: check this is consistent with neko for quotes and char replacements
-		if ctx.call_level == 0 then 
+		if ctx.call_level == 0 then
 			php(ctx, ";");
 	| CRaw e ->
-		if ctx.call_level == 0 then 
+		if ctx.call_level == 0 then
 			php(ctx, tpl(ctx)+"->buf .= ");
 		gen_ast_expr(ctx,e);
-		if ctx.call_level == 0 then 
+		if ctx.call_level == 0 then
 			php(ctx, ";");
 	| CIf e ->
 		php(ctx, "if(");
@@ -365,9 +365,9 @@ function rec generate_attr(ctx,p,(n,content)) {
 
 function rec gen_macro_params(ctx,sl) {
 	match sl {
-	| [] -> 
+	| [] ->
 		php(ctx, "$container, $ctx, $tpl");
-	| (s,_) :: sl ->
+	| (s,_,_) :: sl ->
 		ctx.macro_locals := s :: ctx.macro_locals;
 		php(ctx,"$"+s+", ");
 		gen_macro_params(ctx,sl);
@@ -386,7 +386,7 @@ function rec gen_macro_call(ctx,name,params) {
 
 function rec gen_macro_args(ctx,el) {
 	match el {
-	| [] -> 
+	| [] ->
 		php(ctx, "'"+ctx.container + "', $ctx, " + tpl(ctx));
 	| e :: el ->
 		List.iter generate_element(ctx) e;
@@ -402,35 +402,35 @@ function rec generate_element(ctx,e) {
 	// TODO: check this is the same strategy adopted in Neko
 	| XNode n when n.n_node == "macros" ->
 		match n.n_content {
-		| None -> 
+		| None ->
 		| Some cl ->
 			List.iter (function(e2) {
 				match fst e2 {
 				| XMacroDef _ ->
-					generate_element(ctx, e2) 
-				| _ -> 
+					generate_element(ctx, e2)
+				| _ ->
 					()
 				}
 			}) cl;
 		};
 */
-	| XNode n ->				
+	| XNode n ->
 		match n.n_repeat {
-		| None -> 
+		| None ->
 			open_block(ctx,"")
 		| Some (v,e) ->
 			gen_foreach(ctx,v,e)
 		};
-		
+
 		match n.n_cond {
 		| None -> open_block(ctx,"")
-		| Some cond -> 
+		| Some cond ->
 			php(ctx," if(");
 			gen_ast_expr(ctx,cond);
 			php(ctx,") {");
 			open_block(ctx," }")
 		};
-		
+
 		cdata(ctx, "<" + n.n_node);
 		List.iter generate_attr(ctx,p) n.n_attributes;
 		List.iter (function((name,_,params)){ gen_macro_call ctx name params }) n.n_macros;
@@ -445,7 +445,7 @@ function rec generate_element(ctx,e) {
 		}) n.n_attrs;
 
 		match n.n_content {
-		| None -> 
+		| None ->
 			cdata(ctx,"/>")
 		| Some cl ->
 			cdata(ctx,">");
@@ -467,7 +467,7 @@ function rec generate_element(ctx,e) {
 				List.iter generate_element(ctx) c;
 			| MAttr a ->
 				List.iter generate_attr(ctx,p) a;
-		};		
+		};
 		close_block(ctx);
 		ctx.macro_locals := [];
 		ctx.inmacro := false;
@@ -508,7 +508,7 @@ function generate_file(output,(file,content,imports)) {
 	php(ctx,"<?php\n");
 	List.iter generate_template(ctx) content;
 	php(ctx, "\n?>"); // closes opened cdata when required
-	
+
 	function escape(sep,str) {
 		String.concat "__" (String.split str sep)
 	}

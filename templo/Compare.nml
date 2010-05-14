@@ -41,7 +41,7 @@ function node_data_matters(n) {
 function is_text_attribute(node,a) {
 	match a {
 	| "title" | "alt" | "value" -> true
-	| _ -> 
+	| _ ->
 		match *xml_config {
 		| None -> false
 		| Some m -> *is_xml && Map.exists m (node,a)
@@ -93,9 +93,12 @@ function rec add_macro(m) {
 		var e0 = (XData "ASSERT",null_pos);
 		compare_attr_list compare_content "" al al e0 e0
 	}
-	var params = List.map (function((p,_)) Hashtbl.exists used p) m.m_args;
-	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map (function((p,opt)) (if opt then "?" else "") + p + ":" + if Hashtbl.exists used p then "logic" else "text") m.m_args));
-	macros := Map.add (*macros) m.m_name params;
+	var params = List.map (function((p,mode,_)) Hashtbl.exists used p && mode != MIgnore) m.m_args;
+	function arg_str((p,_,opt)) {
+		(if opt then "?" else "") + p + ":" + (if Hashtbl.exists used p then "logic" else "text")
+	}
+	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map arg_str m.m_args));
+	macros := Map.add (*macros) m.m_name (m.m_mode,params);
 }
 
 function rec compare_expr(ea:expr,eb:expr,logic) {
@@ -166,7 +169,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		if na.n_ignore != nb.n_ignore then diff "::ignore" ea "::ignore" eb;
 		compare_attr_list compare_content na.n_node na.n_attributes nb.n_attributes ea eb;
 		compare_attr_list (function(ea,eb,_,_) compare_expr ea eb (*data_meaningful)) na.n_node na.n_attrs nb.n_attrs ea eb;
-		function make_macro((m,p,c)) (XMacroCall m c,p);		
+		function make_macro((m,p,c)) (XMacroCall m c,p);
 		compare_gram_content (List.map make_macro na.n_macros) (List.map make_macro nb.n_macros) snd(ea) snd(eb);
 		match (na.n_cond, nb.n_cond) {
 		| (None,None) -> ()
@@ -193,7 +196,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		var la = List.length ela;
 		var lb = List.length elb;
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
-		var margs = try Map.find (*macros) ma catch { Not_found -> throw MacroNotFound(ma,snd ea) };
+		var mmode, margs = try Map.find (*macros) ma catch { Not_found -> throw MacroNotFound(ma,snd ea) };
 		if List.length margs != la then error "Macro #args differs";
 		var margs = &margs;
 		List.iter2 (function(ela,elb) {
@@ -209,7 +212,8 @@ function rec compare_elt(ea:elt,eb:elt) {
 		var lb = List.length mb.m_args;
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
 		function ostr(o) if o then "optional" else "not-optional";
-		List.iter2 (function((a,oa),(b,ob)) { check (ostr oa) ea (ostr ob) eb; check a ea b eb; }) ma.m_args mb.m_args;
+		function mstr(m) match m { MNormal -> "normal" | MIgnore -> "ignore" | MGrammar -> "grammar" };
+		List.iter2 (function((a,ma,oa),(b,mb,ob)) { check (ostr oa) ea (ostr ob) eb; check (mstr ma) ea (mstr mb) eb; check a ea b eb; }) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
 		| (MContent ela,MContent elb) -> compare_gram_content ela elb snd(ea) snd(eb)
 		| (MAttr la,MAttr lb) -> compare_attr_list compare_content "" la lb ea eb
@@ -237,7 +241,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 			()
 		| (CForeach (a,ea1),CForeach (b,eb1)) | (CSet (a,ea1),CSet (b,eb1)) ->
 			check a ea b eb;
-			compare_expr ea1 eb1 true			
+			compare_expr ea1 eb1 true
 		| (CCase x,CCase y) when x == y ->
 			()
 		| _ ->
@@ -281,7 +285,7 @@ function rec compare_gram_content(ela,elb,pa,pb) {
 						v2 := Map.remove (*v2) v;
 						v1 := Map.remove (*v1) v;
 					}
-				}) (*v1);				
+				}) (*v1);
 				Map.iter (function(_,e1) {
 					Map.iter (function(_,e2) throw DiffExpr(e1,e2)) (*v2);
 					throw ExtraExpr(e1,pb);
@@ -297,12 +301,12 @@ function rec compare_gram_content(ela,elb,pa,pb) {
 }
 
 function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
-	function is_null_elt(e) {		
+	function is_null_elt(e) {
 		match fst e {
 		| XComment _ | XData _ -> !(*data_meaningful)
 		| XNode n -> n.n_ignore
 		| XConstr (CValue e)
-		| XConstr (CRaw e) -> 
+		| XConstr (CRaw e) ->
 			match fst e {
 			| VConst (CString _) -> !(*data_meaningful)
 			| _ -> false
@@ -381,7 +385,9 @@ function rec elt_str(e) {
 	match fst e {
 	| XNode n -> "<" + n.n_node + "..."
 	| XMacroCall (m,el) -> "$$" + m + "(...)"
-	| XMacroDef m -> "<macro name=\"" + m.m_name + "(" + String.concat "," (List.map (function((a,o)) if o then "?" + a else a) m.m_args) + ")\"..."
+	| XMacroDef m ->
+		function mode_str(m) match m { MNormal -> "" | MIgnore -> "ignore " | MGrammar -> "grammar " };
+		"<macro name=\"" + mode_str m.m_mode + m.m_name + "(" + String.concat "," (List.map (function((a,m,o)) mode_str m + (if o then "?" + a else a)) m.m_args) + ")\"..."
 	| XComment s -> "<!--"+s+"-->"
 	| XData s -> s
 	| XCData _ -> "<![CDATA[...]]>"
@@ -435,6 +441,69 @@ function init(dbg,xml,ml) {
 	loop ml;
 }
 
+function rec cleanup_grammar(el) {
+	function rec loop(el,acc) {
+		match el {
+		| [] -> List.rev acc
+		| (XMacroCall (ma,cl),p) :: l ->
+			var mmode, _ = try Map.find (*macros) ma catch { Not_found -> throw MacroNotFound(ma,p) };
+			match mmode {
+			| MGrammar ->
+				// remove ::raw since it's implied by macro usage
+				function noraw(e) {
+					match fst e {
+					| XConstr c ->
+						match c {
+						| CRaw v -> (XConstr (CValue v),snd e)
+						| _ -> e
+						}
+					| _ -> e
+					}
+				}
+				var cl = List.map (List.map noraw) cl;
+				loop l (List.append (List.concat cl) acc)
+			| _ ->
+				loop l ((XMacroCall ma (List.map cleanup_grammar cl),p) :: acc)
+			}
+		| (e,p) :: l ->
+			var e = match e {
+			| XNode n ->
+				var n = {
+					n_node = n.n_node;
+					n_attributes = n.n_attributes;
+					n_macros = n.n_macros;
+					n_cond = n.n_cond;
+					n_repeat = n.n_repeat;
+					n_attrs = n.n_attrs;
+					n_content = match n.n_content { None -> None | Some c -> Some (cleanup_grammar c) };
+					n_ignore = n.n_ignore;
+				};
+				XNode n
+			| XMacroCall _ ->
+				assert()
+			| XMacroDef m ->
+				var m = {
+					m_mode = m.m_mode;
+					m_name = m.m_name;
+					m_args = m.m_args;
+					m_content = match m.m_content {
+						| MContent c -> MContent (cleanup_grammar c)
+						| MAttr al -> MAttr (List.map (function((a,c)) (a, cleanup_grammar c)) al)
+					};
+				}
+				add_macro m;
+				XMacroDef m;
+			| XCData c ->
+				XCData (cleanup_grammar c)
+			| XComment _ | XData _ | XConstr _ ->
+				e
+			};
+			loop l ((e,p) :: acc)
+		}
+	}
+	loop el []
+}
+
 function rec compare(a,b,compile,io) {
 	var is_a = try Some (Sys.is_directory a) catch { _ -> None };
 	var is_b = try Some (Sys.is_directory b) catch { _ -> None };
@@ -447,7 +516,7 @@ function rec compare(a,b,compile,io) {
 		true
 	| (None, None) ->
 		log io "Both '%s' and '%s' are missing" (a,b);
-		true		
+		true
 	| (Some true,Some true) ->
 		var files_a = Sys.read_directory a;
 		var files_b = Sys.read_directory b;
@@ -457,7 +526,7 @@ function rec compare(a,b,compile,io) {
 			is_xml := false;
 			var cmp = match Sys.extension(f) {
 				| "" | "mtt" -> true
-				| "xml" -> 
+				| "xml" ->
 					match *xml_config {
 					| None -> false
 					| Some _ -> is_xml := true; true
@@ -483,6 +552,10 @@ function rec compare(a,b,compile,io) {
 		try  {
 			used_var_callback := (function(_,_) ());
 			data_meaningful := false;
+			var ea = cleanup_grammar ea;
+			macros := old;
+			var eb = cleanup_grammar eb;
+			macros := old;
 			compare_gram_content ea eb makep(a) makep(b)
 		} catch {
 			| ExtraExpr (e,p) ->
@@ -494,7 +567,7 @@ function rec compare(a,b,compile,io) {
 			| ExtraAttr (a,e,p) ->
 				log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str);
 				original p;
-			| DiffExpr (a,b) -> 
+			| DiffExpr (a,b) ->
 				log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str);
 				original snd(a)
 			| DiffElt (a,b) ->

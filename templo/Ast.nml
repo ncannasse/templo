@@ -108,9 +108,16 @@ type macro_content {
 	MAttr : (string, content) list;
 }
 
+type macro_mode {
+	MNormal;
+	MIgnore;
+	MGrammar;
+}
+
 type macro {
+	m_mode : macro_mode;
 	m_name : string;
-	m_args : (string,bool) list;
+	m_args : (string,macro_mode,bool) list;
 	m_content : macro_content;
 }
 

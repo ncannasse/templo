@@ -161,12 +161,21 @@ function rec parse_construct(s) {
 	}
 }
 
+function rec parse_mode_name(s) {
+	match s {
+	| [< (Keyword KIgnore,_); (Ident name,_) >] -> (MIgnore, name)
+	| [< (Ident "grammar",_); (Ident name,_) >] -> (MGrammar, name)
+	| [< (Ident name,_) >] -> (MNormal, name)
+	}
+}
+
 function rec parse_macro_def(s,p1) {
 	cur := MAttributes;
 	// parse name attribute
-	var name, args = match s {
-	| [< (Ident "name",_); (Op OpAssign,_); (Quote b,_); (Ident name,_) >] ->
+	var mode, name, args = match s {
+	| [< (Ident "name",_); (Op OpAssign,_); (Quote b,_) >] ->
 		cur := MExpr;
+		var mode, name = parse_mode_name s;
 		var params = match s {
 		| [< (ParentOpen,_) >] -> parse_macro_args s false
 		}
@@ -174,7 +183,7 @@ function rec parse_macro_def(s,p1) {
 		match s {
 		| [< (Quote b2,_) >] -> if b != b2 then throw Stream_error;
 		}
-		(name,params)
+		(mode,name,params)
 	}
 	var content, p2 = match s {
 	| [< (NodeContent b,p2) >] -> (Some b, p2)
@@ -202,6 +211,7 @@ function rec parse_macro_def(s,p1) {
 		}
 	};
 	var m = {
+		m_mode = mode;
 		m_name = name;
 		m_args = args;
 		m_content = content;
@@ -213,10 +223,11 @@ function rec parse_macro_args(s,opt) {
 	match s {
 	| [< (ParentClose,_) >] -> []
 	| [< (Question,_); >] -> parse_macro_args s true
-	| [< (Ident i,_) >] ->
+	| [< >] ->
+		var mode, name = parse_mode_name s;
 		match s {
-		| [< (Comma,_) >] -> (i,opt) :: parse_macro_args s opt
-		| [< (ParentClose,_) >] -> [(i,opt)]
+		| [< (Comma,_) >] -> (name,mode,opt) :: parse_macro_args s opt
+		| [< (ParentClose,_) >] -> [(name,mode,opt)]
 		}
 	}
 }

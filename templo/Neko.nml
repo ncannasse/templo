@@ -175,7 +175,7 @@ function rec ast_element(e) {
 			| MContent c -> ast_block c
 			| MAttr a -> block List.concat(List.map make_attr(p) a)
 		};
-		var emacro = (EFunction ("@buf" :: "@context" :: List.map fst m.m_args) ef,p);
+		var emacro = (EFunction ("@buf" :: "@context" :: List.map (function((n,_,_)) n) m.m_args) ef,p);
 		macros := (EBinop "=" (macro_name m.m_name p) emacro,p) :: (*macros);
 		(EBlock [],p)
 	| XComment c ->
@@ -288,7 +288,7 @@ function rec ast_content(acc,el) {
 				ast_content (ast_expr(e) :: acc) el
 			| CEnd ->
 				(acc,None,el)
-			| CSwitch e ->				
+			| CSwitch e ->
 				var def, next, el = ast_content [] el;
 				function rec loop(next,el) {
 					match next {
@@ -407,7 +407,7 @@ function generate_file(output,debug,(file,content,imports)) {
 			data = @replace(data, \"\\\"\", \"&quot;\");
 			return data;
 		}
-		@eindex = function(v) {			
+		@eindex = function(v) {
 			return if( $typeof(v) == $tint ) v else v.index;
 		}
 		@eargs = function(v) {
