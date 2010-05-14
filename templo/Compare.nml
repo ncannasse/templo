@@ -482,16 +482,16 @@ function rec cleanup_grammar(el) {
 			| XMacroCall _ ->
 				assert()
 			| XMacroDef m ->
+				add_macro m;
 				var m = {
 					m_mode = m.m_mode;
 					m_name = m.m_name;
 					m_args = m.m_args;
 					m_content = match m.m_content {
-						| MContent c -> MContent (cleanup_grammar c)
-						| MAttr al -> MAttr (List.map (function((a,c)) (a, cleanup_grammar c)) al)
+						| MContent c -> MContent (if m.m_mode == MGrammar then [] else cleanup_grammar c)
+						| MAttr al -> MAttr (List.map (function((a,c)) (a, if m.m_mode == MGrammar then [] else cleanup_grammar c)) al)
 					};
 				}
-				add_macro m;
 				XMacroDef m;
 			| XCData c ->
 				XCData (cleanup_grammar c)
