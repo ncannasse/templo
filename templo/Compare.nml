@@ -213,6 +213,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		if la != lb then diff (la + " args") ea (lb + " args") eb;
 		function ostr(o) if o then "optional" else "not-optional";
 		function mstr(m) match m { MNormal -> "normal" | MHtml -> "html" | MGrammar -> "grammar" };
+		check (mstr ma.m_mode) ea (mstr mb.m_mode) eb;
 		List.iter2 (function((a,ma,oa),(b,mb,ob)) { check (ostr oa) ea (ostr ob) eb; check (mstr ma) ea (mstr mb) eb; check a ea b eb; }) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
 		| (MContent ela,MContent elb) -> compare_gram_content ela elb snd(ea) snd(eb)
