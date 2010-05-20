@@ -2,5 +2,5 @@
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
-    <version name="2.3.1">Bugfixes and allow ignore expression</version>
+    <version name="2.3.2">Improved template comparison</version>
 </project>
