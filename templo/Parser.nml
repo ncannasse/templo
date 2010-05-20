@@ -163,7 +163,7 @@ function rec parse_construct(s) {
 
 function rec parse_mode_name(s) {
 	match s {
-	| [< (Keyword KIgnore,_); (Ident name,_) >] -> (MIgnore, name)
+	| [< (Ident "html",_); (Ident name,_) >] -> (MHtml, name)
 	| [< (Ident "grammar",_); (Ident name,_) >] -> (MGrammar, name)
 	| [< (Ident name,_) >] -> (MNormal, name)
 	}

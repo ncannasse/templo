@@ -100,13 +100,13 @@ function add_macro(chk,m,file,p) {
 		| (_,mode,opt) :: l ->
 			match mode {
 			| MGrammar -> error "This mode is not allowed for macro variable" p
-			| MIgnore | MNormal -> ()
+			| MHtml | MNormal -> ()
 			}
 			(if opt then 1 else 0) + loop l
 		}
 	}
 	match m.m_mode {
-	| MIgnore -> error "This mode is not allowed for macro definition" p
+	| MHtml -> error "This mode is not allowed for macro definition" p
 	| MGrammar | MNormal -> ()
 	}
 	var md = {

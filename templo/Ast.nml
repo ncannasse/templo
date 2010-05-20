@@ -110,7 +110,7 @@ type macro_content {
 
 type macro_mode {
 	MNormal;
-	MIgnore;
+	MHtml;
 	MGrammar;
 }
 
