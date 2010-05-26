@@ -18,6 +18,9 @@ open Templo.Ast;
 exception ExtraExpr : (expr,pos);
 exception ExtraElt : (elt,pos);
 exception ExtraAttr : (string,elt,pos);
+exception MissingExpr : (expr,pos);
+exception MissingElt : (elt,pos);
+exception MissingAttr : (string,elt,pos);
 exception DiffExpr : (expr,expr);
 exception DiffElt : (elt,elt);
 exception Diff : ((string,pos),(string,pos));
@@ -75,7 +78,7 @@ function rec compare_attr_list(callb,node,ela,elb,ea,eb) {
 	| ([],(b,_) :: _) ->
 		throw ExtraAttr(b,eb,snd ea);
 	| ((a,_) :: _,[]) ->
-		throw ExtraAttr(a,ea,snd eb);
+		throw MissingAttr(a,ea,snd eb);
 	}
 }
 
@@ -114,7 +117,7 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		| (None, None) -> ()
 		| (Some ea, Some eb) -> compare_expr ea eb logic;
 		| (None, Some e) -> throw ExtraExpr(e,snd ea)
-		| (Some e, None) -> throw ExtraExpr(e,snd eb)
+		| (Some e, None) -> throw MissingExpr(e,snd eb)
 		}
 	| (VBinop (opa,ea1,ea2),VBinop (opb,eb1,eb2)) ->
 		if opa != opb then diff s_op(opa) ea s_op(opb) eb;
@@ -158,7 +161,7 @@ function rec compare_expr_list(ela,elb,pa,pb,logic) {
 	| ([],eb :: _) ->
 		throw ExtraExpr(eb,pa);
 	| (ea :: _,[]) ->
-		throw ExtraExpr(ea,pb);
+		throw MissingExpr(ea,pb);
 	}
 }
 
@@ -289,7 +292,7 @@ function rec compare_gram_content(ela,elb,pa,pb) {
 				}) (*v1);
 				Map.iter (function(_,e1) {
 					Map.iter (function(_,e2) throw DiffExpr(e1,e2)) (*v2);
-					throw ExtraExpr(e1,pb);
+					throw MissingExpr(e1,pb);
 				}) (*v1);
 				Map.iter (function(_,e2) {
 					Map.iter (function(_,e1) throw DiffExpr(e1,e2)) (*v1);
@@ -325,7 +328,7 @@ function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
 	| ([],eb :: _) ->
 		throw ExtraElt(eb,pa);
 	| (ea :: _,[]) ->
-		throw ExtraElt(ea,pb);
+		throw MissingElt(ea,pb);
 	}
 }
 
@@ -567,7 +570,16 @@ function rec compare(a,b,compile,io) {
 				original p
 			| ExtraAttr (a,e,p) ->
 				log io "%s extra attribute '%s' in %s" (pos_str e,a,str e elt_str);
-				original p;
+				original p
+			| MissingExpr (e,p) ->
+				log io "%s missing %s" (pos_str (0,p), str e expr_str);
+				original (snd e)
+			| MissingElt (e,p) ->
+				log io "%s missing %s" (pos_str (0,p), str e elt_str);
+				original (snd e)
+			| MissingAttr (a,e,p) ->
+				log io "%s missing attribute '%s' in %s" (pos_str (0,p),a,str e elt_str);
+				original (snd e)
 			| DiffExpr (a,b) ->
 				log io "%s %s should be %s" (pos_str b,str b expr_str,str a expr_str);
 				original snd(a)
