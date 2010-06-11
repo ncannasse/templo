@@ -37,6 +37,7 @@ var cur = &MElement
 
 function priority(op) {
 	match op {
+	| OpCompare -> -5
 	| OpAssign -> -4
 	| OpBoolOr -> -3
 	| OpBoolAnd -> -2
@@ -153,6 +154,8 @@ function rec parse_construct(s) {
 	| [< (Ident "fill",_); (Ident k,_); >] -> CFill k
 	| [< (Ident "end",_) >] -> CEnd
 	| [< (Ident "eval",_); e = parse_expr s >] -> CEval e
+	| [< (Ident "compare",_); >] -> CCompare
+	| [< (Op OpCompare,_); >] -> CCompareWith
 	| [< e = parse_expr s >] -> CValue e
 	}
 	cur := old;

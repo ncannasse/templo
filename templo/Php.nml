@@ -354,6 +354,8 @@ function gen_const_expr(ctx,e) {
 		assert()
 	| CCase n ->
 		assert()
+	| CCompare | CCompareWith ->
+		assert()
 	}
 }
 

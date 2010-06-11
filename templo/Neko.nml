@@ -313,6 +313,12 @@ function rec ast_content(acc,el) {
 			| CCase n ->
 				var en = (EConst Int(n), p);
 				(acc,Some en,el)
+			| CCompare ->
+				var cif, celse, el = ast_content [] el;				
+				ast_content (block(List.rev cif) :: acc) el
+			| CCompareWith ->
+				var cif, _, el = ast_content [] el;
+				(acc, Some block(List.rev cif), el)
 			}
 		| _ ->
 			ast_content (ast_element e :: acc) el

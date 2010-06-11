@@ -152,7 +152,7 @@ var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KDo;KFor;KBreak;KContinue;
 	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch;KCase;KIgnore];
 
 var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
-	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod];
+	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod;OpCompare];
 
 var unops = dict s_unop [Increment;Decrement;Not]
 
@@ -327,7 +327,7 @@ expr := Lexer.build [
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
 	("\\?", function(l) mk l Question);
-	("[-+*/=&|^!<>%]+", function(l) {
+	("[-+*/=&|^!<>%~]+", function(l) {
 		var str = Lexer.current l;
 		var op = try Op (Map.find ops str) catch {
 			Not_found -> try Unop (Map.find unops str) catch {

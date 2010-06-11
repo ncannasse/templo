@@ -119,6 +119,10 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		| (None, Some e) -> throw ExtraExpr(e,snd ea)
 		| (Some e, None) -> throw MissingExpr(e,snd eb)
 		}
+	| (VBinop (OpCompare,_,ea) , _) ->
+		compare_expr ea eb logic
+	| (_, VBinop (OpCompare,_,eb)) ->
+		compare_expr ea eb logic
 	| (VBinop (opa,ea1,ea2),VBinop (opb,eb1,eb2)) ->
 		if opa != opb then diff s_op(opa) ea s_op(opb) eb;
 		compare_expr ea1 eb1 true;
@@ -247,10 +251,10 @@ function rec compare_elt(ea:elt,eb:elt) {
 			check a ea b eb;
 			compare_expr ea1 eb1 true
 		| (CCase x,CCase y) when x == y ->
-			()
+			()		
 		| _ ->
 			throw DiffElt(ea,eb)
-		}
+		}	
 	| _ ->
 		throw DiffElt(ea,eb)
 	}
@@ -317,8 +321,41 @@ function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
 			}
 		| _ -> false
 		}
+	}	
+	function rec remove_compare(el) {
+		match el {
+		| [] -> assert()
+		| e :: el ->
+			match fst(e) {
+			| XConstr CCompare -> remove_compare (remove_compare el)
+			| XConstr CCompareWith -> 
+				function rec loop(el,n) {
+					match el {
+					| [] -> assert()
+					| e :: el ->
+						match fst(e) {
+						| XConstr c ->
+							match c {
+							| CEnd -> 
+								if n > 0 then e :: loop el (n - 1) else el
+							| CIf _ | CForeach _ | CFill _ | CUse _ | CSwitch _ | CCompare ->
+								e :: loop el (n + 1)
+							| _ -> 
+								e :: loop el n
+							}
+						| _ ->
+							e :: loop el n
+						}
+					}
+				}
+				loop el 0
+			| _ -> remove_compare el
+			}
+		}
 	}
 	match (ela,elb) {
+	| ((XConstr CCompare,pa) :: ela, _) -> compare_content (remove_compare ela) elb pa pb
+	| (_, (XConstr CCompare,pb) :: elb) -> compare_content ela (remove_compare elb) pa pb
 	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb snd(ea) pb
 	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb pa snd(eb)
 	| ([],[]) -> ()
@@ -410,6 +447,8 @@ function rec elt_str(e) {
 		| CEnd -> "::end::"
 		| CSwitch e -> "::switch "+expr_str e+"::"
 		| CCase n -> if n == -1 then "::case::" else "::case "+n+"::"
+		| CCompare -> "::compare::"
+		| CCompareWith -> "::~=::"
 		}
 	}
 }

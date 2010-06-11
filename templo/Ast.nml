@@ -39,6 +39,7 @@ type op {
 	OpShr;
 	OpUShr;
 	OpMod;
+	OpCompare;
 }
 
 type unop {
@@ -90,6 +91,8 @@ type construct {
 	CEnd;
 	CSwitch : expr;
 	CCase : int;
+	CCompare;
+	CCompareWith;
 }
 
 type node {
@@ -155,6 +158,7 @@ function s_op(o) {
 	| OpUShr -> ">>>"
 	| OpShl -> "<<"
 	| OpMod -> "%"
+	| OpCompare -> "~="
 	}
 }
 

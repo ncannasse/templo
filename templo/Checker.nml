@@ -442,6 +442,15 @@ function rec check_rec(chk,e) {
 				chk.stack := stack;
 			}
 			CEnd
+		| CCompare ->
+			chk.stack := cur :: chk.stack;
+			CCompare
+		| CCompareWith ->
+			match chk.stack {
+			| (CCompare,_,_) :: stack -> chk.stack := cur :: stack;
+			| _ -> error "Unexpected ~=" snd(e)
+			}
+			CCompareWith
 		}
 		XConstr c
 	}, snd e)
