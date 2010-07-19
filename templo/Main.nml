@@ -105,6 +105,7 @@ try {
 			) el
 		}) macros);
 		Templo.Compare.init (*debug) (*compare_xml) macros;
+		Templo.Checker.error_ref := Some (function(msg,p) IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg));
 		if !(Templo.Compare.compare a b (function(f) { var _,el,_ = compile f false; el }) IO.stdout) then
 			IO.printf IO.stdout "No files were compared in '%s' and '%s'" (a,b);
 	}) List.rev(*compares);

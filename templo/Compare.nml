@@ -34,22 +34,30 @@ var xml_config = &None;
 var is_xml = &false;
 var original = &false;
 
-function node_data_matters(n) {
-	match n {
-	| "script" | "style" -> true
-	| _ -> false
-	}
+function node_data_matters(node) {
+	if *is_xml then
+		match *xml_config {
+		| None -> false
+		| Some m -> Map.exists m (node,"!DATA")
+		}
+	else
+		match node {
+		| "script" | "style" -> true
+		| _ -> false
+		}
 }
 
 function is_text_attribute(node,a) {
-	match a {
-	| "title" | "alt" | "value" -> true
-	| _ ->
+	if *is_xml then
 		match *xml_config {
 		| None -> false
-		| Some m -> *is_xml && Map.exists m (node,a)
+		| Some m -> Map.exists m (node,a) || Map.exists m ("*",a) || Map.exists m (node,"*")
 		}
-	}
+	else
+		match a {
+		| "title" | "alt" | "value" -> true
+		| _ -> false
+		}
 }
 
 function data(f) {
@@ -217,7 +225,8 @@ function rec compare_elt(ea:elt,eb:elt) {
 		check ma.m_name ea mb.m_name eb;
 		var la = List.length ma.m_args;
 		var lb = List.length mb.m_args;
-		if la != lb then diff (la + " args") ea (lb + " args") eb;
+		function astr(args) String.concat "," (List.map (function((a,_,_)) a) args);
+		if la != lb then diff (astr ma.m_args) ea (astr mb.m_args) eb;
 		function ostr(o) if o then "optional" else "not-optional";
 		function mstr(m) match m { MNormal -> "normal" | MHtml -> "html" | MGrammar -> "grammar" };
 		check (mstr ma.m_mode) ea (mstr mb.m_mode) eb;
