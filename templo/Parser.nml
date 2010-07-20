@@ -375,8 +375,6 @@ function rec parse_expr(s) {
 		parse_expr_next s (VArrayDecl el, punion p1 p2)
 	| [< (Keyword KIgnore,p1); (ParentOpen,_); e = parse_expr s; (ParentClose,p2) >] ->
 		parse_expr_next s (VIgnore e, punion p1 p2)
-	| [< (Keyword KIgnore,p1); (BraceOpen,_); e = parse_expr s; (BraceClose,p2) >] ->
-		parse_expr_next s (VIgnoreExpr e, punion p1 p2)
 	| [< (Keyword KIgnore,p1); e = parse_expr s >] ->
 		(VIgnore e, punion p1 snd(e))
 	}

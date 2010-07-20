@@ -170,7 +170,6 @@ function check_expr(chk,e) {
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
 		| VBool e -> VBool loop(e)
 		| VIgnore e -> VIgnore loop(e)
-		| VIgnoreExpr e -> VIgnoreExpr loop(e)
 		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}

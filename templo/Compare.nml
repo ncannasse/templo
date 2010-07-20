@@ -157,8 +157,6 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		var f = data false;
 		compare_expr ea eb false;
 		f();
-	| (VIgnoreExpr ea,VIgnoreExpr eb) ->
-		()
 	| _ ->
 		throw DiffExpr(ea,eb)
 	}
@@ -426,8 +424,6 @@ function rec expr_str(e) {
 		expr_str e
 	| VIgnore e ->
 		"ignore " + expr_str e
-	| VIgnoreExpr e ->
-		"ignore {" + expr_str e + "}"
 	}
 }
 
