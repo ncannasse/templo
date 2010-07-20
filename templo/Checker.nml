@@ -106,13 +106,13 @@ function add_macro(chk,m,file,p) {
 		| (_,mode,opt) :: l ->
 			match mode {
 			| MGrammar -> error "This mode is not allowed for macro variable" p
-			| MHtml | MNormal -> ()
+			| MLiteral | MNormal -> ()
 			}
 			(if opt then 1 else 0) + loop l
 		}
 	}
 	match m.m_mode {
-	| MHtml -> error "This mode is not allowed for macro definition" p
+	| MLiteral -> error "This mode is not allowed for macro definition" p
 	| MGrammar | MNormal -> ()
 	}
 	var md = {
@@ -169,7 +169,7 @@ function check_expr(chk,e) {
 		| VArray (e1,e2) -> VArray loop(e1) loop(e2)
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
 		| VBool e -> VBool loop(e)
-		| VIgnore e -> VIgnore loop(e)
+		| VLiteral e -> VLiteral loop(e)
 		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}

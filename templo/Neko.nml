@@ -109,7 +109,7 @@ function rec ast_expr(e) {
 		ECall (EField ident("@array",p) "new1", p) [arr;(EConst Int(List.length el),p)]
 	| VBool e ->
 		ECall (EConst Builtin("istrue"),p) [ast_expr(e)]
-	| VIgnore e ->
+	| VLiteral e ->
 		fst ast_expr(e)
 	},p)
 }

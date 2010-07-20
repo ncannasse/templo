@@ -104,9 +104,9 @@ function rec add_macro(m) {
 		var e0 = (XData "ASSERT",null_pos);
 		compare_attr_list compare_content "" al al e0 e0
 	}
-	var params = List.map (function((p,mode,_)) Hashtbl.exists used p && mode != MHtml) m.m_args;
+	var params = List.map (function((p,mode,_)) Hashtbl.exists used p && mode != MLiteral) m.m_args;
 	function arg_str((p,_,opt)) {
-		(if opt then "?" else "") + p + ":" + (if Hashtbl.exists used p then "logic" else "text")
+		(if opt then "?" else "") + p + ":" + (if Hashtbl.exists used p then "logic" else "literal")
 	}
 	if *debug then IO.printf IO.stdout "MACRO %s(%s)\n" (m.m_name,String.concat "," (List.map arg_str m.m_args));
 	macros := Map.add (*macros) m.m_name (m.m_mode,params);
@@ -153,7 +153,7 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		compare_expr_list eal ebl snd(ea) snd(eb) logic
 	| (VBool ea, VBool eb) ->
 		compare_expr ea eb true
-	| (VIgnore ea,VIgnore eb) ->
+	| (VLiteral ea,VLiteral eb) ->
 		var f = data false;
 		compare_expr ea eb false;
 		f();
@@ -226,7 +226,7 @@ function rec compare_elt(ea:elt,eb:elt) {
 		function astr(args) String.concat "," (List.map (function((a,_,_)) a) args);
 		if la != lb then diff (astr ma.m_args) ea (astr mb.m_args) eb;
 		function ostr(o) if o then "optional" else "not-optional";
-		function mstr(m) match m { MNormal -> "normal" | MHtml -> "html" | MGrammar -> "grammar" };
+		function mstr(m) match m { MNormal -> "normal" | MLiteral -> "literal" | MGrammar -> "grammar" };
 		check (mstr ma.m_mode) ea (mstr mb.m_mode) eb;
 		List.iter2 (function((a,ma,oa),(b,mb,ob)) { check (ostr oa) ea (ostr ob) eb; check (mstr ma) ea (mstr mb) eb; check a ea b eb; }) ma.m_args mb.m_args;
 		match (ma.m_content, mb.m_content) {
@@ -274,7 +274,7 @@ function rec compare_gram_content(ela,elb,pa,pb) {
 		DiffExpr (e1,e2) ->
 			function collect_vars(el) {
 				var vars = &Map.empty();
-				List.iter (function(e) {
+				function rec loop(e) {
 					match fst e {
 					| XData _ -> ()
 					| XConstr (CValue e) ->
@@ -282,9 +282,20 @@ function rec compare_gram_content(ela,elb,pa,pb) {
 						| VIdent i | VVar i -> vars := Map.add (*vars) i e;
 						| _ -> throw Exit
 						}
+					| XNode n when ! *is_xml ->
+						match n.n_node {
+						| "b" | "em" | "p" | "br" -> ()
+						| _ -> throw Exit
+						}
+						if n.n_attributes != [] || n.n_macros != [] || n.n_cond != None || n.n_repeat != None || n.n_attrs != [] || n.n_ignore then throw Exit;
+						match n.n_content {
+						| None -> ()
+						| Some el -> List.iter loop el
+						}
 					| XComment _ | XMacroCall _ | XMacroDef _ | XNode _ | XCData _ | XConstr _ -> throw Exit
 					}
-				}) el;
+				}
+				List.iter loop el;
 				*vars;
 			}
 			/*
@@ -422,8 +433,8 @@ function rec expr_str(e) {
 		"[" + String.concat "," (List.map expr_str el) + "]"
 	| VBool e ->
 		expr_str e
-	| VIgnore e ->
-		"ignore " + expr_str e
+	| VLiteral e ->
+		"literal " + expr_str e
 	}
 }
 
@@ -432,7 +443,7 @@ function rec elt_str(e) {
 	| XNode n -> "<" + n.n_node + "..."
 	| XMacroCall (m,el) -> "$$" + m + "(...)"
 	| XMacroDef m ->
-		function mode_str(m) match m { MNormal -> "" | MHtml -> "html " | MGrammar -> "grammar " };
+		function mode_str(m) match m { MNormal -> "" | MLiteral -> "literal " | MGrammar -> "grammar " };
 		"<macro name=\"" + mode_str m.m_mode + m.m_name + "(" + String.concat "," (List.map (function((a,m,o)) mode_str m + (if o then "?" + a else a)) m.m_args) + ")\"..."
 	| XComment s -> "<!--"+s+"-->"
 	| XData s -> s

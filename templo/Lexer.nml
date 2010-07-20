@@ -32,6 +32,7 @@ type keyword {
 	KSwitch;
 	KCase;
 	KIgnore;
+	KLiteral;
 }
 
 type token {
@@ -109,6 +110,7 @@ function s_keyword(k) {
 	| KSwitch -> "switch"
 	| KCase -> "case"
 	| KIgnore -> "ignore"
+	| KLiteral -> "literal"
 	}
 }
 
@@ -149,7 +151,7 @@ function dict(f,l) {
 }
 
 var keywords = dict s_keyword [KIf;KElse;KVar;KWhile;KDo;KFor;KBreak;KContinue;
-	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch;KCase;KIgnore];
+	KFunction;KReturn;KThis;KTry;KCatch;KDefault;KSwitch;KCase;KIgnore;KLiteral];
 
 var ops = dict s_op [OpAdd;OpMult;OpDiv;OpSub;OpAssign;OpEq;OpNotEq;OpGt;OpGte;
 	OpLt;OpLte;OpAnd;OpOr;OpXor;OpBoolAnd;OpBoolOr;OpShl;OpShr;OpUShr;OpMod;OpCompare];

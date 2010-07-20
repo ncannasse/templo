@@ -166,7 +166,7 @@ function rec parse_construct(s) {
 
 function rec parse_mode_name(s) {
 	match s {
-	| [< (Ident "html",_); (Ident name,_) >] -> (MHtml, name)
+	| [< (Keyword KLiteral,_); (Ident name,_) >] -> (MLiteral, name)
 	| [< (Ident "grammar",_); (Ident name,_) >] -> (MGrammar, name)
 	| [< (Ident name,_) >] -> (MNormal, name)
 	}
@@ -373,10 +373,10 @@ function rec parse_expr(s) {
 		make_unop Neg parse_expr(s) p
 	| [< (BracketOpen,p1); el = parse_expr_list s; (BracketClose,p2) >] ->
 		parse_expr_next s (VArrayDecl el, punion p1 p2)
-	| [< (Keyword KIgnore,p1); (ParentOpen,_); e = parse_expr s; (ParentClose,p2) >] ->
-		parse_expr_next s (VIgnore e, punion p1 p2)
-	| [< (Keyword KIgnore,p1); e = parse_expr s >] ->
-		(VIgnore e, punion p1 snd(e))
+	| [< (Keyword KLiteral,p1); (ParentOpen,_); e = parse_expr s; (ParentClose,p2) >] ->
+		parse_expr_next s (VLiteral e, punion p1 p2)
+	| [< (Keyword KLiteral,p1); e = parse_expr s >] ->
+		(VLiteral e, punion p1 snd(e))
 	}
 }
 

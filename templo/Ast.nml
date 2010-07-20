@@ -69,7 +69,7 @@ type expr_def {
 	VArray : (expr,expr);
 	VArrayDecl : expr list;
 	VBool : expr;
-	VIgnore : expr;	
+	VLiteral : expr;
 }
 
 type expr = (expr_def,pos)
@@ -112,7 +112,7 @@ type macro_content {
 
 type macro_mode {
 	MNormal;
-	MHtml;
+	MLiteral;
 	MGrammar;
 }
 
