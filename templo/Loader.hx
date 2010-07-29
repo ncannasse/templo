@@ -403,7 +403,7 @@ function _hxtemplo_lastIndexOf($s, $p) {
 
 function _hxtemplo_length($v) {
 	if(is_string($v)) {
-		return str_len($v);
+		return strlen($v);
 	} else {
 		return $v->length;
 	}
