@@ -85,6 +85,8 @@ function rec ast_expr(e) {
 		EConst (Ident v)
 	| VIf (e1,e2,e3) ->
 		EIf ast_expr(e1) ast_expr(e2) (match e3 { None -> Some (EConst False,p) | Some e -> Some (ast_expr e) })
+	| VBinop (OpCompare,e,_) ->
+		EParenthesis ast_expr(e)
 	| VBinop (op,e1,e2) ->
 		EBinop s_op(op) ast_expr(e1) ast_expr(e2)
 	| VUnop (op,pref,e) ->
