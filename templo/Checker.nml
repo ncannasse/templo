@@ -69,7 +69,6 @@ function error(msg,pos) {
 	| None -> throw Error(msg,pos)
 	| Some f -> f msg pos
 	}
-	
 }
 
 function init() {
@@ -204,7 +203,7 @@ function rec check_macro(chk,name,kind,params,pos) {
 	var extra = m.margs - List.length params;
 	if extra < 0 || extra > m.moptargs then error ("Macro "+name+" needs "+(if m.moptargs > 0 then m.margs - m.moptargs + "-" else "") + m.margs+" parameters") pos;
 	function rec make_nulls(n) {
-		if n == 0 then [] else [(XData "null",pos)] :: make_nulls (n-1)
+		if n <= 0 then [] else [(XData "null",pos)] :: make_nulls (n-1)
 	}
 	var params = List.concat [params;make_nulls extra];
 	match m.mfile {
