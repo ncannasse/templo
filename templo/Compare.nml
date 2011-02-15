@@ -396,8 +396,26 @@ function pos_str((_,p)) {
 	if *debug then "" else p.psource + ":" + p.pline + ":"
 }
 
+function escape(s) {
+	var b = Buffer.create();
+	function rec loop(i) {
+		if i == String.length s then
+			Buffer.string b
+		else {
+			match String.get s i {
+			| '\n' -> Buffer.add b "\\n"
+			| '\t' -> Buffer.add b "\\t"
+			| '\r' -> Buffer.add b "\\r"
+			| c -> Buffer.add_char b c
+			};
+			loop (i+1)
+		}
+	};
+	loop(0);
+}
+
 function str(e,f) {
-	if *debug then "\n\t" + string(e) + "\n" else "'"+f e+"'";
+	if *debug then "\n\t" + string(e) + "\n" else "'"+escape (f e)+"'";
 }
 
 function txt_str((t,_)) {
