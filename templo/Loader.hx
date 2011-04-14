@@ -47,7 +47,7 @@ class Loader {
 	public static var TMP_DIR = "/tmp/";
 	public static var MACROS = "macros.mtt";
 	public static var OPTIMIZED = false;
-	public static var DEBUG = false;
+	public static var COMPACT = false;
 
 	var run : Buffer -> Dynamic -> String;
 	var macros : Dynamic -> Void;
@@ -99,8 +99,8 @@ class Loader {
 			args.push("-macros");
 			args.push(MACROS);
 		}
-		if( DEBUG )
-			args.push("-debug");
+		if( COMPACT )
+			args.push("--compact");
 		args.push("-cp");
 		args.push(BASE_DIR);
 		args.push("-output");
@@ -217,7 +217,7 @@ class Loader {
 	public static var TMP_DIR = "/tmp/";
 	public static var MACROS = "macros.mtt";
 	public static var OPTIMIZED = false;
-	public static var DEBUG = false;
+	public static var COMPACT = false;
 
 	var file : String;
 	var templatename : String;
@@ -334,8 +334,8 @@ class Loader {
 			args.push("-macros");
 			args.push(MACROS);
 		}
-		if( DEBUG )
-			args.push("-debug");
+		if( COMPACT )
+			args.push("--compact");
 		args.push("-cp");
 		args.push(BASE_DIR);
 		args.push("-output");
