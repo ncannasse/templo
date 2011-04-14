@@ -2,5 +2,5 @@
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
-    <version name="2.3.4">Minor bugfixes</version>
+    <version name="2.3.5">Added --compact</version>
 </project>
