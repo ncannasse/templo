@@ -46,6 +46,73 @@ function complete_path(p) {
 		p
 }
 
+var rspaces = Regexp.build "[ \r\n\t]+";
+
+function ltrim(s) {
+	var r = Regexp.build "^[ \r\n\t]+(.*)$";
+	if Regexp.find r s 0 (String.length s) then Regexp.matched r 1 else s
+}
+
+function rtrim(s) {
+	var r = Regexp.build "^(.*)[ \r\n\t]+$";
+	if Regexp.find r s 0 (String.length s) then Regexp.matched r 1 else s
+}
+
+function rec compact(el) {
+	function make(s) {
+		String.concat "\n" (Regexp.split rspaces s)
+	}
+	function rec loop(pre,el) {
+		match el {
+		| [] ->
+			match pre {
+			| None -> []
+			| Some (str,p) -> [(XData (make str),p)]
+			}
+		| (XData str,p) :: l ->
+			match pre {
+			| None -> loop (Some (str,p)) l
+			| Some (str2,_) -> loop (Some (str2+str,p)) l
+			}
+		| x :: l ->
+			match pre {
+			| None -> x :: loop None l
+			| Some (str,p) -> (XData (make str),p) :: x :: loop None l
+			}
+		}
+	}
+	function trim(c) {
+		var c = match c {
+		| (XData str,p) :: l -> (XData ltrim(str),p) :: l
+		| _ -> c
+		};
+		var c = match List.rev c {
+		| (XData str,p) :: l -> List.rev ((XData rtrim(str),p) :: l)
+		| _ -> c
+		}
+		c
+	}
+	function loop2((e,p)) {
+		var e = match e {
+		| XNode n when n.n_node == "script" ->
+			match n.n_content {
+			| Some c -> n.n_content := Some (trim c)
+			| _ -> ()
+			}
+			XNode n
+		| XNode n when n.n_node != "pre" ->
+			n.n_content := match n.n_content { None -> None | Some c -> Some (trim (compact c)) }
+			XNode n
+		| XMacroDef m ->
+			var c = match m.m_content { MContent c -> MContent (trim (compact c)) | c -> c };
+			XMacroDef ({ m_mode = m.m_mode; m_name = m.m_name; m_content = c; m_args = m.m_args })
+		| _ -> e
+		}
+		(e,p)
+	}
+	List.map loop2 (loop None el);
+}
+
 try {
 	var head = "Temploc v2.3 - (c)2008-2009 Motion-Twin\nUsage : temploc [options] <files>";
 	var files = &[];
@@ -55,6 +122,7 @@ try {
 	var compare_xml = &None;
 	var debug = &false;
 	var xml = &false;
+	var do_compact = &false;
 	var chk = Templo.Checker.init();
 	var macros = &[];
 	var compares = &[];
@@ -80,6 +148,7 @@ try {
 		("--compare-both",Args.Void (function() {
 			Templo.Compare.original := true;
 		}),": display both files position in comparisons");
+		("--compact", Args.Void (function() do_compact := true),": compact html spaces");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	// remove all macros that are also in files
@@ -91,6 +160,7 @@ try {
 		var el = parse file open_file(*paths,file);
 		var el = if macro then Templo.Checker.add_macros chk file el else el;
 		var el, deps = Templo.Checker.run chk is_xml(file) el;
+		var el = if *do_compact then compact el else el;
 		(file,el,deps)
 	}
 	var macros = List.map (function(file) compile(file,true)) List.rev(*macros);
