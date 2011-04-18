@@ -59,15 +59,15 @@ function rtrim(s) {
 }
 
 function rec compact(el) {
-	function make(s) {
-		String.concat "\n" (Regexp.split rspaces s)
+	function make(s,sp) {
+		String.concat (if sp then " " else "\n") (Regexp.split rspaces s)
 	}
 	function rec loop(pre,el) {
 		match el {
 		| [] ->
 			match pre {
 			| None -> []
-			| Some (str,p) -> [(XData (make str),p)]
+			| Some (str,p) -> [(XData (make str true),p)]
 			}
 		| (XData str,p) :: l ->
 			match pre {
@@ -77,7 +77,7 @@ function rec compact(el) {
 		| x :: l ->
 			match pre {
 			| None -> x :: loop None l
-			| Some (str,p) -> (XData (make str),p) :: x :: loop None l
+			| Some (str,p) -> (XData (make str false),p) :: x :: loop None l
 			}
 		}
 	}
