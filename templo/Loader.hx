@@ -327,7 +327,7 @@ class Loader {
 			var stamp = php.FileSystem.stat(tmpFile).mtime.getTime();
 			if( stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp) )
 				return;
-			neko.FileSystem.deleteFile(tmpFile);
+			php.FileSystem.deleteFile(tmpFile);
 		}
 		var result = 0;
 		var args = new Array();
