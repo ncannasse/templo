@@ -55,7 +55,8 @@ function is_text_attribute(node,a) {
 		}
 	else
 		match a {
-		| "title" | "alt" | "value" -> true
+		| "title" | "alt" -> true
+		| "value" -> node == "input"
 		| _ -> false
 		}
 }
