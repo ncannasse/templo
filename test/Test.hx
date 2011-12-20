@@ -10,7 +10,6 @@ enum E {
 class Test {
 
 	static function main() {
-		templo.Loader.DEBUG = true;
 		templo.Loader.TMP_DIR = "";
 		try neko.FileSystem.deleteFile("test.mtt.n") catch( e : Dynamic ) {};
 		var t = new templo.Loader("test.mtt");

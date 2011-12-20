@@ -276,6 +276,8 @@ function rec parse_node_attribs(s,node) {
 			}
 		| [< (Ident "attr",_); (Ident attr,_); e = parse_expr s; (DoubleDot,_) >] ->
 			node.n_attrs := (attr,e) :: node.n_attrs
+		| [< (Ident "attr",_); (String attr,_); e = parse_expr s; (DoubleDot,_) >] ->
+			node.n_attrs := (attr,e) :: node.n_attrs
 		| [< (Ident "repeat",p); (Ident v,_); e = parse_expr s; (DoubleDot,_) >] ->
 			match node.n_repeat {
 			| None -> node.n_repeat := Some (v,e);
