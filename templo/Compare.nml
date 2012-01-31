@@ -589,15 +589,15 @@ function rec compare(a,b,compile,io) {
 	| (None, Some _) ->
 		log io "%s:0: is no longer useful" b;
 		true
-	| (Some _, None) ->
+	| (Some false, None) ->
 		log io "%s:0: %s is missing" (a,b);
 		true
 	| (None, None) ->
 		log io "Both '%s' and '%s' are missing" (a,b);
 		true
-	| (Some true,Some true) ->
+	| (Some true,Some true) | (Some true,None) ->
 		var files_a = Sys.read_directory a;
-		var files_b = Sys.read_directory b;
+		var files_b = try Sys.read_directory b catch { _ -> [] };
 		var files = List.fold (function(acc,e) if List.mem e acc then acc else e :: acc) files_b files_a;
 		var found = &false;
 		List.iter (function(f) {
