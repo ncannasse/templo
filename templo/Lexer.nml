@@ -330,6 +330,7 @@ expr := Lexer.build [
 	("]", function(l) { mk l BracketClose });
 	("\\?", function(l) mk l Question);
 	("==", function(l) mk l Op(OpEq));
+	("=", function(l) mk l Op(OpAssign));
 	("[-+*/&|^!<>%~]+=?", function(l) {
 		var str = Lexer.current l;
 		var op = try Op (Map.find ops str) catch {
