@@ -113,6 +113,8 @@ function rec ast_expr(e) {
 		ECall (EConst Builtin("istrue"),p) [ast_expr(e)]
 	| VLiteral e ->
 		fst ast_expr(e)
+	| VObject fl ->
+		EObject (List.map (function((s,e)) (s,ast_expr e)) fl)
 	},p)
 }
 

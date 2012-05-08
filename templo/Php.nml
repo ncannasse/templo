@@ -261,6 +261,8 @@ function rec gen_ast_expr(ctx,e) {
 		php(ctx,")");
 	| VLiteral e ->
 		gen_ast_expr ctx e
+	| VObject fl ->
+		assert()
 	}
 }
 

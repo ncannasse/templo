@@ -169,6 +169,7 @@ function check_expr(chk,e) {
 		| VArrayDecl el -> VArrayDecl (List.map loop el)
 		| VBool e -> VBool loop(e)
 		| VLiteral e -> VLiteral loop(e)
+		| VObject fl -> VObject (List.map (function((s,e)) (s,loop e)) fl)
 		| VConst _ | VIdent _ | VVar _ -> fst e
 		},snd e)
 	}

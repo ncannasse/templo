@@ -70,6 +70,7 @@ type expr_def {
 	VArrayDecl : expr list;
 	VBool : expr;
 	VLiteral : expr;
+	VObject : (string, expr) list;
 }
 
 type expr = (expr_def,pos)

@@ -329,7 +329,8 @@ expr := Lexer.build [
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
 	("\\?", function(l) mk l Question);
-	("[-+*/=&|^!<>%~]+", function(l) {
+	("==", function(l) mk l Op(OpEq));
+	("[-+*/&|^!<>%~]+=?", function(l) {
 		var str = Lexer.current l;
 		var op = try Op (Map.find ops str) catch {
 			Not_found -> try Unop (Map.find unops str) catch {
@@ -353,6 +354,7 @@ expr := Lexer.build [
 		(String str, p)
 	});
 	ddot;
+	(":", function(l) mk l DoubleDot);
 ] invalid_char;
 
 estring := Lexer.build [

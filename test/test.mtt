@@ -1,13 +1,1 @@
-::foreach v values::
-::switch v::
-#::v::
-::case::
-0!
-::case::
-1!
-::case 3::
-D(::args[0]::)
-::case::
-4!
-::end::
-::end::
+::raw { x : 0, y : {}, z : 1==-1 }::

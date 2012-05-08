@@ -379,6 +379,20 @@ function rec parse_expr(s) {
 		parse_expr_next s (VLiteral e, punion p1 p2)
 	| [< (Keyword KLiteral,p1); e = parse_expr s >] ->
 		(VLiteral e, punion p1 snd(e))
+	| [< (BraceOpen,p1); fl = parse_field_list s; (BraceClose,p2) >] ->
+		parse_expr_next s (VObject fl, punion p1 p2)
+	}
+}
+
+function rec parse_field_list(s) {
+	match s {
+	| [< (Ident str,_); (DoubleDot,_); e = parse_expr s >] ->
+		match s {
+		| [< (Comma,_) >] -> ()
+		| [< >] -> ()
+		}
+		(str,e) :: parse_field_list s
+	| [< >] -> []
 	}
 }
 

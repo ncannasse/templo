@@ -454,6 +454,8 @@ function rec expr_str(e) {
 		expr_str e
 	| VLiteral e ->
 		"literal " + expr_str e
+	| VObject fl ->
+		"{" + String.concat "," (List.map (function((s,e)) s + " : " + expr_str e) fl) + "}"
 	}
 }
 
