@@ -25,6 +25,7 @@ exception DiffExpr : (expr,expr);
 exception DiffElt : (elt,elt);
 exception Diff : ((string,pos),(string,pos));
 exception MacroNotFound : (string,pos);
+exception UnclosedCompare : pos;
 
 var data_meaningful = &false;
 var debug = &false;
@@ -341,12 +342,12 @@ function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
 		| _ -> false
 		}
 	}	
-	function rec remove_compare(el) {
+	function rec remove_compare(el,p) {
 		match el {
-		| [] -> assert()
+		| [] -> throw UnclosedCompare(p)
 		| e :: el ->
 			match fst(e) {
-			| XConstr CCompare -> remove_compare (remove_compare el)
+			| XConstr CCompare -> remove_compare (remove_compare el snd(e)) p
 			| XConstr CCompareWith -> 
 				function rec loop(el,n) {
 					match el {
@@ -368,13 +369,13 @@ function rec compare_content(ela: elt list,elb : elt list,pa,pb) {
 					}
 				}
 				loop el 0
-			| _ -> remove_compare el
+			| _ -> remove_compare el p
 			}
 		}
 	}
 	match (ela,elb) {
-	| ((XConstr CCompare,pa) :: ela, _) -> compare_content (remove_compare ela) elb pa pb
-	| (_, (XConstr CCompare,pb) :: elb) -> compare_content ela (remove_compare elb) pa pb
+	| ((XConstr CCompare,pa) :: ela, _) -> compare_content (remove_compare ela pa) elb pa pb
+	| (_, (XConstr CCompare,pb) :: elb) -> compare_content ela (remove_compare elb pb) pa pb
 	| (ea :: ela, _) when is_null_elt ea -> compare_content ela elb snd(ea) pb
 	| (_, eb :: elb) when is_null_elt eb -> compare_content ela elb pa snd(eb)
 	| ([],[]) -> ()
@@ -667,6 +668,8 @@ function rec compare(a,b,compile,io) {
 				original snd(a)
 			| MacroNotFound (m,p) ->
 				log io "%s macro not found %s" (pos_str (m,p),m)
+			| UnclosedCompare p ->
+				log io "%s unclosed ::compare" (pos_str (0,p))
 		}
 		macros := old;
 		true
