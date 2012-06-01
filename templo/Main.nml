@@ -185,6 +185,7 @@ try {
 	| Templo.Lexer.Error(msg,pos) -> report Templo.Lexer.error_msg(msg) pos
 	| Templo.Parser.Error(msg,pos) -> report Templo.Parser.error_msg(msg) pos
 	| Templo.Checker.Error(msg,pos) -> report msg pos
+	| Neko.Compile.Error(msg,pos) -> report msg pos
 	| Error msg ->
 		IO.printf IO.stderr "%s\n" msg;
 		Sys.exit(-1)
