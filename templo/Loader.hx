@@ -23,6 +23,16 @@
  * DAMAGE.
  */
 package templo;
+#if haxe3
+import sys.FileSystem;
+import sys.io.Process;
+#elseif neko
+import neko.FileSystem;
+import neko.io.Process;
+#else
+import php.FileSystem;
+import php.io.Process;
+#end
 
 private typedef Iter = {
 	var __it : Iterator<Dynamic>;
@@ -84,15 +94,15 @@ class Loader {
 
 	function compileTemplate( path:String ) : Void {
 		var tmpFile = tmpFileId(path);
-		if( neko.FileSystem.exists(tmpFile) ) {
-			var macroStamp = if( neko.FileSystem.exists(BASE_DIR+MACROS) )
-				neko.FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() else null;
-			var sourceStamp = if( neko.FileSystem.exists(BASE_DIR+path) )
-				neko.FileSystem.stat(BASE_DIR+path).mtime.getTime() else null;
-			var stamp = neko.FileSystem.stat(tmpFile).mtime.getTime();
+		if( FileSystem.exists(tmpFile) ) {
+			var macroStamp = if( FileSystem.exists(BASE_DIR+MACROS) )
+				FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() else null;
+			var sourceStamp = if( FileSystem.exists(BASE_DIR+path) )
+				FileSystem.stat(BASE_DIR+path).mtime.getTime() else null;
+			var stamp = FileSystem.stat(tmpFile).mtime.getTime();
 			if( sourceStamp == null || (stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp)) )
 				return;
-			neko.FileSystem.deleteFile(tmpFile);
+			FileSystem.deleteFile(tmpFile);
 		}
 		var result = 0;
 		var args = new Array();
@@ -107,7 +117,7 @@ class Loader {
 		args.push("-output");
 		args.push(TMP_DIR);
 		args.push(path);
-		var p = new neko.io.Process("temploc2",args);
+		var p = new Process("temploc2",args);
 		var output = p.stderr.readAll();
 		if( p.exitCode() != 0 )
 			throw "Temploc compilation of "+path+" failed : "+output;
@@ -321,13 +331,13 @@ class Loader {
 
 	function compileTemplate( path:String ) : Void {
 		var tmpFile = tmpFileId(path);
-		if( php.FileSystem.exists(tmpFile) ) {
-			var macroStamp = MACROS != null && php.FileSystem.exists(BASE_DIR+MACROS) ? php.FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() : null;
-			var sourceStamp = php.FileSystem.stat(BASE_DIR+path).mtime.getTime();
-			var stamp = php.FileSystem.stat(tmpFile).mtime.getTime();
+		if( FileSystem.exists(tmpFile) ) {
+			var macroStamp = MACROS != null && FileSystem.exists(BASE_DIR+MACROS) ? FileSystem.stat(BASE_DIR+MACROS).mtime.getTime() : null;
+			var sourceStamp = FileSystem.stat(BASE_DIR+path).mtime.getTime();
+			var stamp = FileSystem.stat(tmpFile).mtime.getTime();
 			if( stamp >= sourceStamp && (macroStamp == null || macroStamp < stamp) )
 				return;
-			php.FileSystem.deleteFile(tmpFile);
+			FileSystem.deleteFile(tmpFile);
 		}
 		var result = 0;
 		var args = new Array();
@@ -343,7 +353,7 @@ class Loader {
 		args.push("-output");
 		args.push(TMP_DIR);
 		args.push(path);
-		var p = new php.io.Process("temploc2",args);
+		var p = new Process("temploc2",args);
 		var code = p.exitCode();
 		if( code != 0 )
 			throw "Temploc compilation of "+path+" failed : "+p.stderr.readAll().toString();
