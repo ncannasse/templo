@@ -159,6 +159,11 @@ function rec compare_expr(ea:expr,eb:expr,logic) {
 		var f = data false;
 		compare_expr ea eb false;
 		f();
+	| (VObject al, VObject bl) when List.length al == List.length bl ->
+		List.iter2 (function((na,a),(nb,b)) {
+			if na != nb then throw DiffExpr(ea,eb);
+			compare_expr a b true;
+		}) al bl
 	| _ ->
 		throw DiffExpr(ea,eb)
 	}

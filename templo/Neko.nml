@@ -458,7 +458,7 @@ function generate_file(output,debug,(file,content,imports)) {
 		IO.close_out ch;
 	}
 	var fout = output + file + ".n";
-	var code = Neko.Compile.compile program;
+	var code = Neko.Compile.compile 0 program;
 	var ch, str = IO.write_string();
 	Neko.Bytecode.write ch code;
 	var new_data = str();
