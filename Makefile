@@ -1,4 +1,5 @@
 all:
+	-mkdir neko
 	nekoml templo/*.nml
 	nekoc -link temploc2.n templo/Main
 	nekotools boot temploc2.n
