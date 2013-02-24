@@ -2,3 +2,4 @@
 /neko
 *.exe
 *.n
+/test/release.zip
