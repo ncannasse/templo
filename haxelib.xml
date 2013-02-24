@@ -1,4 +1,4 @@
-<project name="templo" url="http://code.google.com/p/temploc" license="LGPL">
+<project name="templo" url="http://github.com/ncannasse/templo" license="LGPL">
     <user name="ncannasse"/>
     <user name="fponticelli"/>
     <description>Advanced Template System for haXe</description>
