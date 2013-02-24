@@ -380,7 +380,7 @@ function rec gen_macro_params(ctx,sl) {
 
 function rec gen_macro_call(ctx,name,params) {
 	ctx.call_level := ctx.call_level+1;
-	php(ctx, tpl(ctx) + "->macro('" + name + "', array(");
+	php(ctx, tpl(ctx) + "->macroCall('" + name + "', array(");
 	ctx.inmacroarg := true;
 	gen_macro_args ctx params;
 	ctx.inmacroarg := false;

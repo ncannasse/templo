@@ -242,7 +242,7 @@ class Loader {
 
 	public function execute( ctx : Dynamic ) : String {
 		if(ctx == null) ctx = {};
-		cache_macro_functions = new Hash();
+		cache_macro_functions = #if haxe3 new Map() #else new Hash() #end;
 
 		if(MACROS != null && MACROS != '') {
 			var macrosfiles = MACROS.split(' ');
@@ -313,9 +313,14 @@ class Loader {
 		return prefixes;
 	}
 
+	#if haxe3
+	var cache_macro_functions : Map<String,String>;
+	#else
 	var cache_macro_functions : Hash<String>;
+	#end
+	
 	var macrosprefixes : Array<String>;
-	function macro(name : String, args : Dynamic) {
+	function macroCall(name : String, args : Dynamic) {
 		if(cache_macro_functions.exists(name))
 			return untyped __call__("call_user_func_array", cache_macro_functions.get(name), args);
 
