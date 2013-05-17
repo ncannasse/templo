@@ -1,6 +1,0 @@
-<project name="templo" url="http://github.com/ncannasse/templo" license="LGPL">
-    <user name="ncannasse"/>
-    <user name="fponticelli"/>
-    <description>Advanced Template System for haXe</description>
-    <version name="3.0">Haxe 3.0 Support</version>
-</project>

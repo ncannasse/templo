@@ -1,0 +1,9 @@
+{
+  "name": "templo",
+  "url": "http://github.com/ncannasse/templo",
+  "license": "LGPL",
+  "description": "Advanced Template System for Haxe",
+  "version": "3.0.0",
+  "releasenote": "Haxe 3.0 Support",
+  "contributors": ["ncannasse","fponticelli"]
+}
