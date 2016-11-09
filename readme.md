@@ -361,8 +361,9 @@ This means that the following usages are equivalent :
 ::use 'design.mtt'::
     <h2>The content to write in design.mtt</h2>
 ::end::
-```html
-And the new design.mtt will looks like :
+```
+
+And the new design.mtt will look like :
 
 ```html
 <html>
