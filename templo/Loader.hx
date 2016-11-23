@@ -268,6 +268,7 @@ class Loader {
 	var b : Array<String>;
 	var content : String;
 	function bufferReset() {
+        buf = '';
 		b = [];
 		content = null;
 	}
